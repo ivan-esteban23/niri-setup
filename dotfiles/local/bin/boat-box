@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # boat-box — Helper tool for managing user's Boat Sandboxes
-#   • The Reference Edit: bx_4qhc25xp
-#   • Portrait Issue 02:  bx_wbqyt3bf
+#   • The Reference Edit: bx_4qhc25xp (default dir: Work/the-reference-edit)
+#   • Portrait Issue 02:  bx_wbqyt3bf (default dir: Work/the-portrait-edit-issue-02)
 set -euo pipefail
 
 BOX_REF="bx_4qhc25xp"
@@ -15,16 +15,16 @@ Usage:
   boat-box status                      Show status of all sandboxes
   boat-box start <ref|portrait>        Start / Resume a sandbox
   boat-box stop <ref|portrait>         Stop sandbox to pause billing
-  boat-box exec <ref|portrait> <cmd..> Run command inside sandbox over Boat API
+  boat-box exec <ref|portrait> <cmd..> Run command in project dir (or use --home for ~)
   boat-box ssh <ref|portrait> [cmd..]  Open interactive SSH or run remote command
   boat-box prompt <ref|portrait> <txt> Send prompt to coding agent in sandbox
   boat-box forward <ref|portrait> <remote_port> [local_port] Forward a TCP port
   boat-box info <ref|portrait>         Show detailed sandbox info
   boat-box desktop <ref|portrait>      Get/open sandbox web desktop URL
 
-Aliases:
-  ref      -> bx_4qhc25xp (The Reference Edit)
-  portrait -> bx_wbqyt3bf (Portrait Issue 02)
+Aliases & Default Directories:
+  ref      -> bx_4qhc25xp (cwd: Work/the-reference-edit)
+  portrait -> bx_wbqyt3bf (cwd: Work/the-portrait-edit-issue-02)
 EOF
 }
 
@@ -33,6 +33,14 @@ resolve_id() {
         ref|reference|the-reference-edit|bx_4qhc25xp) echo "$BOX_REF" ;;
         portrait|portrait-02|issue-02|bx_wbqyt3bf) echo "$BOX_PORTRAIT" ;;
         *) echo "${1:-}" ;;
+    esac
+}
+
+resolve_dir() {
+    case "${1:-}" in
+        ref|reference|the-reference-edit|bx_4qhc25xp) echo "Work/the-reference-edit" ;;
+        portrait|portrait-02|issue-02|bx_wbqyt3bf) echo "Work/the-portrait-edit-issue-02" ;;
+        *) echo "" ;;
     esac
 }
 
@@ -58,9 +66,18 @@ case "$CMD" in
         boat info "$ID"
         ;;
     exec)
-        ID="$(resolve_id "${1:-}")"
+        RAW_TARGET="${1:-}"
+        ID="$(resolve_id "$RAW_TARGET")"
+        DEFAULT_DIR="$(resolve_dir "$RAW_TARGET")"
         shift
-        boat exec "$ID" "$@"
+        if [ "${1:-}" = "--home" ]; then
+            shift
+            boat exec "$ID" "$@"
+        elif [ -n "$DEFAULT_DIR" ]; then
+            boat exec "$ID" --cwd "$DEFAULT_DIR" "$@"
+        else
+            boat exec "$ID" "$@"
+        fi
         ;;
     ssh)
         ID="$(resolve_id "${1:-}")"

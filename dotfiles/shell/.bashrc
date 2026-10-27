@@ -90,7 +90,7 @@ boat() {
 # Boat Sandboxes
 export BOAT_REF="bx_4qhc25xp"
 export BOAT_PORTRAIT="bx_wbqyt3bf"
-alias boat-ref='boat exec bx_4qhc25xp'
-alias boat-portrait='boat exec bx_wbqyt3bf'
+alias boat-ref='boat exec bx_4qhc25xp --cwd Work/the-reference-edit'
+alias boat-portrait='boat exec bx_wbqyt3bf --cwd Work/the-portrait-edit-issue-02'
 alias boat-ref-ssh='boat ssh bx_4qhc25xp'
 alias boat-portrait-ssh='boat ssh bx_wbqyt3bf'
