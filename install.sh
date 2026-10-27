@@ -239,7 +239,7 @@ if [ "$DRY" != 1 ]; then
     command -v fc-cache >/dev/null && fc-cache -f >/dev/null 2>&1 || true
 fi
 
-# ── 6. External CLIs (OpenCode & Qoder) ────────────────────────────────────────
+# ── 6. External CLIs (OpenCode, Qoder & Boat) ─────────────────────────────────
 if ! command -v opencode >/dev/null; then
     say "OpenCode not found in repos — skipping (install later: https://opencode.ai)"
 fi
@@ -250,6 +250,14 @@ if ! command -v qodercli >/dev/null; then
     else
         curl -fsSL https://qoder.com/install | bash || warn "Qoder CLI installation failed"
         ln -sfn "$HOME/.local/bin/qodercli" "$HOME/.local/bin/qoder" 2>/dev/null || true
+    fi
+fi
+if ! command -v boat >/dev/null; then
+    say "Installing Boat CLI"
+    if [ "$DRY" = 1 ]; then
+        echo "   [dry-run] curl -fsSL https://boat.dev/install | sh"
+    else
+        curl -fsSL https://boat.dev/install | sh || warn "Boat CLI installation failed"
     fi
 fi
 

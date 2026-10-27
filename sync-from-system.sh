@@ -98,6 +98,7 @@ for f in "${TEXT_FILES[@]}"; do
     sed -i -E \
         -e "s#tvly-[A-Za-z0-9_-]+#__TAVILY_API_KEY__#g" \
         -e "s#xpl_[A-Za-z0-9_]+#__EXPERIENTIALLABS_API_KEY__#g" \
+        -e "s#box__[A-Za-z0-9_-]+#__BOAT_TOKEN__#g" \
         -e "s#(sk|ghp|gho|github_pat)[-_][A-Za-z0-9_]{20,}#__REDACTED_TOKEN__#g" \
         -e "s#$HOME#__HOME__#g" \
         "$f"

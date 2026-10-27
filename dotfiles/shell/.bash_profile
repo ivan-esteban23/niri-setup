@@ -28,3 +28,11 @@ PATH="${_qoder_dispatcher_entry}${_qoder_dispatcher_tail}"
 export PATH
 unset _qoder_dispatcher_entry _qoder_dispatcher_rest _qoder_dispatcher_tail _qoder_dispatcher_part _qoder_dispatcher_more
 # END QODER_DISPATCHER_PATH v1
+
+# ASCII BOAT SHELL INTEGRATION START boat
+case ":$PATH:" in
+  *":__HOME__/.ascii/bin:"*) ;;
+  *) PATH="__HOME__/.ascii/bin:$PATH" ;;
+esac
+export PATH
+# ASCII BOAT SHELL INTEGRATION END boat

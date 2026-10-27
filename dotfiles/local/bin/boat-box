@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# boat-box — Helper tool for managing user's Boat Sandboxes
+#   • The Reference Edit: bx_4qhc25xp
+#   • Portrait Issue 02:  bx_wbqyt3bf
+set -euo pipefail
+
+BOX_REF="bx_4qhc25xp"
+BOX_PORTRAIT="bx_wbqyt3bf"
+
+usage() {
+    cat <<EOF
+boat-box — Manage Boat Sandboxes (The Reference Edit & Portrait Issue 02)
+
+Usage:
+  boat-box status                      Show status of all sandboxes
+  boat-box start <ref|portrait>        Start / Resume a sandbox
+  boat-box stop <ref|portrait>         Stop sandbox to pause billing
+  boat-box exec <ref|portrait> <cmd..> Run command inside sandbox over Boat API
+  boat-box ssh <ref|portrait> [cmd..]  Open interactive SSH or run remote command
+  boat-box prompt <ref|portrait> <txt> Send prompt to coding agent in sandbox
+  boat-box forward <ref|portrait> <remote_port> [local_port] Forward a TCP port
+  boat-box info <ref|portrait>         Show detailed sandbox info
+  boat-box desktop <ref|portrait>      Get/open sandbox web desktop URL
+
+Aliases:
+  ref      -> bx_4qhc25xp (The Reference Edit)
+  portrait -> bx_wbqyt3bf (Portrait Issue 02)
+EOF
+}
+
+resolve_id() {
+    case "${1:-}" in
+        ref|reference|the-reference-edit|bx_4qhc25xp) echo "$BOX_REF" ;;
+        portrait|portrait-02|issue-02|bx_wbqyt3bf) echo "$BOX_PORTRAIT" ;;
+        *) echo "${1:-}" ;;
+    esac
+}
+
+CMD="${1:-}"
+shift || { usage; exit 1; }
+
+case "$CMD" in
+    status|list)
+        boat list --all
+        ;;
+    start|resume)
+        ID="$(resolve_id "${1:-}")"
+        echo "Starting Boat sandbox $ID..."
+        boat resume "$ID"
+        ;;
+    stop)
+        ID="$(resolve_id "${1:-}")"
+        echo "Stopping Boat sandbox $ID..."
+        boat stop "$ID"
+        ;;
+    info)
+        ID="$(resolve_id "${1:-}")"
+        boat info "$ID"
+        ;;
+    exec)
+        ID="$(resolve_id "${1:-}")"
+        shift
+        boat exec "$ID" "$@"
+        ;;
+    ssh)
+        ID="$(resolve_id "${1:-}")"
+        shift || true
+        boat ssh "$ID" "$@"
+        ;;
+    prompt)
+        ID="$(resolve_id "${1:-}")"
+        shift
+        boat prompt "$ID" "$@"
+        ;;
+    forward)
+        ID="$(resolve_id "${1:-}")"
+        REMOTE="${2:-3000}"
+        LOCAL="${3:-$REMOTE}"
+        boat forward "$ID" --remote "$REMOTE" --local "$LOCAL"
+        ;;
+    desktop)
+        ID="$(resolve_id "${1:-}")"
+        boat desktop "$ID"
+        ;;
+    -h|--help|help)
+        usage
+        ;;
+    *)
+        echo "Unknown command: $CMD" >&2
+        usage >&2
+        exit 1
+        ;;
+esac
