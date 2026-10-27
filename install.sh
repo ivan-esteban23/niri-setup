@@ -159,6 +159,24 @@ EOF
         [ -f "$OC" ] && command -v jq >/dev/null && \
             jq 'del(.mcp)' "$OC" > "$OC.tmp" && mv "$OC.tmp" "$OC"
     fi
+
+    # Experiential Labs API Key (GLM-5.3)
+    EXP_KEY="${EXPERIENTIALLABS_API_KEY:-${EXPLABS_API_KEY:-}}"
+    ENV_CONF="$HOME/.config/environment.d/95-experientiallabs.conf"
+    if [ -n "$EXP_KEY" ]; then
+        say "Injecting Experiential Labs API key"
+        for f in "${RCS[@]}" "$OC" "$ENV_CONF"; do
+            [ -f "$f" ] && sed -i "s#__EXPERIENTIALLABS_API_KEY__#$EXP_KEY#g" "$f"
+        done
+    else
+        warn "EXPERIENTIALLABS_API_KEY not set — removing Experiential Labs placeholders."
+        for f in "${RCS[@]}"; do
+            [ -f "$f" ] && sed -i -e '/__EXPERIENTIALLABS_API_KEY__/d' -e '/^# Experiential Labs API Key$/d' "$f"
+        done
+        [ -f "$ENV_CONF" ] && rm -f "$ENV_CONF"
+        [ -f "$OC" ] && command -v jq >/dev/null && \
+            jq 'del(.providers.experientiallabs)' "$OC" > "$OC.tmp" && mv "$OC.tmp" "$OC"
+    fi
 fi
 
 # ── 4. System config + services ───────────────────────────────────────────────

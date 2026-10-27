@@ -21,6 +21,10 @@ alias agy='agy --dangerously-skip-permissions'
 # Tavily API Key
 export TAVILY_API_KEY="__TAVILY_API_KEY__"
 
+# Experiential Labs API Key
+export EXPERIENTIALLABS_API_KEY="__EXPERIENTIALLABS_API_KEY__"
+export EXPLABS_API_KEY="__EXPERIENTIALLABS_API_KEY__"
+
 # QODER_DISPATCHER_PATH v1
 _qoder_dispatcher_entry="$HOME/.qoder/entry"
 _qoder_dispatcher_rest=${PATH-}

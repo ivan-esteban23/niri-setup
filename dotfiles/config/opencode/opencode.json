@@ -34,5 +34,38 @@
       }
     }
   },
-  "plugins": []
+  "providers": {
+    "experientiallabs": {
+      "name": "Experiential Labs",
+      "env": [
+        "EXPERIENTIALLABS_API_KEY",
+        "EXPLABS_API_KEY"
+      ],
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://api.experientiallabs.ai/v1"
+      },
+      "headers": {
+        "Authorization": "Bearer __EXPERIENTIALLABS_API_KEY__"
+      },
+      "models": {
+        "glm-5.3-uncensored": {
+          "name": "GLM 5.3 Uncensored 1M",
+          "limit": {
+            "context": 1048576,
+            "input": 1048576,
+            "output": 131072
+          }
+        },
+        "glm-5.3-flash-uncensored": {
+          "name": "GLM 5.3 Flash Uncensored 1M",
+          "limit": {
+            "context": 1048576,
+            "input": 1048576,
+            "output": 131072
+          }
+        }
+      }
+    }
+  }
 }
