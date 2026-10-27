@@ -1,0 +1,15 @@
+{
+    "id": "imgPrompt",
+    "name": "Image Prompt Builder",
+    "description": "Attach a reference image (clipboard or path), and it analyzes it with the Dux street-style framework and returns a ready ChatGPT image prompt (via ChatGPT/Codex). Mod+Shift+B attach, Mod+Shift+G build",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": ["dankbar-widget", "control-center"],
+    "component": "./ImgPromptWidget.qml",
+    "icon": "image_search",
+    "permissions": [
+        "process",
+        "settings_read"
+    ]
+}

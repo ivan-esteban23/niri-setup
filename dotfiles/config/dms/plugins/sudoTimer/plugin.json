@@ -1,0 +1,15 @@
+{
+    "id": "sudoTimer",
+    "name": "Sudo Timer",
+    "description": "Keeps passwordless sudo alive for 600 minutes after a single password entry (Mod+Shift+S to start, Mod+Alt+S to stop)",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "daemon",
+    "capabilities": ["process", "monitoring"],
+    "component": "./SudoTimerKeepalive.qml",
+    "icon": "security",
+    "permissions": [
+        "process",
+        "settings_read"
+    ]
+}

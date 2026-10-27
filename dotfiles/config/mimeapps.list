@@ -1,0 +1,31 @@
+
+[Default Applications]
+image/png=oculante.desktop
+image/jpeg=oculante.desktop
+image/webp=oculante.desktop
+image/gif=oculante.desktop
+image/svg+xml=oculante.desktop
+x-scheme-handler/mailto=dms-open.desktop
+video/avi=vlc.desktop
+video/mp4=vlc.desktop
+video/mpeg=vlc.desktop
+video/quicktime=vlc.desktop
+video/webm=vlc.desktop
+video/x-matroska=vlc.desktop
+video/x-msvideo=vlc.desktop
+text/html=brave-origin.desktop
+x-scheme-handler/http=brave-origin.desktop
+x-scheme-handler/https=brave-origin.desktop
+x-scheme-handler/about=brave-origin.desktop
+x-scheme-handler/unknown=brave-origin.desktop
+application/xhtml+xml=brave-origin.desktop
+
+[Added Associations]
+x-scheme-handler/mailto=dms-open.desktop;
+video/avi=vlc.desktop;
+video/mp4=vlc.desktop;
+video/mpeg=vlc.desktop;
+video/quicktime=vlc.desktop;
+video/webm=vlc.desktop;
+video/x-matroska=vlc.desktop;
+video/x-msvideo=vlc.desktop;

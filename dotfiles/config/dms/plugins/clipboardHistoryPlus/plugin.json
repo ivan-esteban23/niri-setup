@@ -1,0 +1,16 @@
+{
+    "id": "clipboardHistoryPlus",
+    "name": "Clipboard History Manager",
+    "description": "Quickly browse, restore, and save clipboard history items (images, files, and text) from DankBar and Control Center",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": ["dankbar-widget", "control-center", "clipboard"],
+    "component": "./ClipboardHistoryWidget.qml",
+    "icon": "content_paste_search",
+    "permissions": [
+        "settings_read",
+        "settings_write",
+        "process"
+    ]
+}

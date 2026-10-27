@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""
+samsung-battery — Battery monitor backend for Samsung Galaxy A55 5G & Galaxy Watch 7
+Supports:
+  - KDE Connect (kdeconnect-cli / DBus)
+  - BlueZ / UPower
+  - Local state cache / HTTP push (~/.cache/samsung-battery/state.json)
+  - Demo mode for testing widget UI
+"""
+
+import os
+import sys
+import json
+import time
+import subprocess
+import shutil
+
+CACHE_DIR = os.path.expanduser("~/.cache/samsung-battery")
+STATE_FILE = os.path.join(CACHE_DIR, "state.json")
+DEMO_FLAG = os.path.join(CACHE_DIR, "demo.flag")
+LOG_FILE = os.path.join(CACHE_DIR, "daemon.log")
+
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+def notify(title, msg, urgency="normal"):
+    if shutil.which("notify-send"):
+        subprocess.Popen([
+            "notify-send",
+            "-u", urgency,
+            "-a", "Samsung Battery",
+            "-i", "battery",
+            title, msg
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def get_demo_state():
+    return {
+        "phone": {
+            "name": "Galaxy A55 5G (Demo)",
+            "connected": True,
+            "level": 84,
+            "charging": True,
+            "source": "demo"
+        },
+        "watch": {
+            "name": "Galaxy Watch 7 (Demo)",
+            "connected": True,
+            "level": 67,
+            "charging": False,
+            "source": "demo"
+        },
+        "summary": "A55: 84% ⚡ · Watch: 67%",
+        "has_data": True,
+        "demo": True,
+        "updated_at": int(time.time())
+    }
+
+def query_kdeconnect():
+    """Query kdeconnect-cli for connected devices and their batteries."""
+    if not shutil.which("kdeconnect-cli"):
+        return {}
+
+    found = {}
+    try:
+        # List paired & reachable devices
+        out = subprocess.check_output(
+            ["kdeconnect-cli", "-a", "--id-name-only"],
+            text=True, stderr=subprocess.DEVNULL, timeout=3
+        ).strip()
+    except Exception:
+        return {}
+
+    for line in out.splitlines():
+        parts = line.strip().split(maxsplit=1)
+        if len(parts) < 2:
+            continue
+        dev_id, dev_name = parts[0], parts[1]
+        
+        # Check battery
+        try:
+            bat_out = subprocess.check_output(
+                ["kdeconnect-cli", "-d", dev_id, "--battery"],
+                text=True, stderr=subprocess.DEVNULL, timeout=2
+            ).strip()
+        except Exception:
+            continue
+
+        # e.g.: "Battery: 85% (Charging)" or "Battery: 85%"
+        if "Battery:" in bat_out:
+            level = -1
+            charging = "charging" in bat_out.lower()
+            try:
+                digits = "".join([c for c in bat_out.split("%")[0] if c.isdigit()])
+                if digits:
+                    level = int(digits)
+            except Exception:
+                pass
+
+            lower_name = dev_name.lower()
+            if any(k in lower_name for k in ["watch", "gear", "wear", "gw7", "watch7"]):
+                role = "watch"
+            else:
+                role = "phone"
+
+            found[role] = {
+                "name": dev_name,
+                "connected": True,
+                "level": level,
+                "charging": charging,
+                "source": "kdeconnect",
+                "device_id": dev_id
+            }
+
+    return found
+
+def query_upower():
+    """Query upower for bluetooth batteries."""
+    if not shutil.which("upower"):
+        return {}
+
+    found = {}
+    try:
+        devs_out = subprocess.check_output(
+            ["upower", "-e"],
+            text=True, stderr=subprocess.DEVNULL, timeout=2
+        ).strip()
+    except Exception:
+        return {}
+
+    for dev_path in devs_out.splitlines():
+        if "battery" not in dev_path and "device" not in dev_path:
+            continue
+        # Skip laptop main battery
+        if "BAT" in dev_path or "line_power" in dev_path:
+            continue
+            
+        try:
+            info = subprocess.check_output(
+                ["upower", "-i", dev_path],
+                text=True, stderr=subprocess.DEVNULL, timeout=2
+            )
+        except Exception:
+            continue
+
+        name = "Bluetooth Device"
+        level = -1
+        charging = False
+
+        for line in info.splitlines():
+            line = line.strip()
+            if line.startswith("model:"):
+                name = line.split(":", 1)[1].strip()
+            elif line.startswith("percentage:"):
+                p_str = "".join([c for c in line if c.isdigit()])
+                if p_str:
+                    level = int(p_str)
+            elif line.startswith("state:"):
+                charging = "charging" in line.lower()
+
+        lower_name = name.lower()
+        if any(k in lower_name for k in ["watch", "gw7", "galaxy watch"]):
+            found["watch"] = {
+                "name": name,
+                "connected": True,
+                "level": level,
+                "charging": charging,
+                "source": "upower"
+            }
+        elif any(k in lower_name for k in ["a55", "samsung", "phone", "galaxy"]):
+            found["phone"] = {
+                "name": name,
+                "connected": True,
+                "level": level,
+                "charging": charging,
+                "source": "upower"
+            }
+
+    return found
+
+def get_current_state():
+    if os.path.exists(DEMO_FLAG):
+        return get_demo_state()
+
+    # Check for manual / push cache first
+    cached = {}
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                cached = json.load(f)
+        except Exception:
+            cached = {}
+
+    # Live discovery
+    live = {}
+    live.update(query_upower())
+    live.update(query_kdeconnect())
+
+    phone = live.get("phone") or cached.get("phone") or {
+        "name": "Samsung Galaxy A55 5G",
+        "connected": False,
+        "level": -1,
+        "charging": False,
+        "source": "none"
+    }
+
+    watch = live.get("watch") or cached.get("watch") or {
+        "name": "Galaxy Watch 7",
+        "connected": False,
+        "level": -1,
+        "charging": False,
+        "source": "none"
+    }
+
+    parts = []
+    if phone["connected"] and phone["level"] >= 0:
+        chg = " ⚡" if phone["charging"] else ""
+        parts.append(f"A55: {phone['level']}%{chg}")
+    else:
+        parts.append("A55: Offline")
+
+    if watch["connected"] and watch["level"] >= 0:
+        chg = " ⚡" if watch["charging"] else ""
+        parts.append(f"Watch 7: {watch['level']}%{chg}")
+    else:
+        parts.append("Watch: Offline")
+
+    has_data = phone["connected"] or watch["connected"]
+    summary = " · ".join(parts) if has_data else "No Samsung devices connected"
+
+    state = {
+        "phone": phone,
+        "watch": watch,
+        "summary": summary,
+        "has_data": has_data,
+        "demo": False,
+        "updated_at": int(time.time())
+    }
+
+    # Cache state
+    try:
+        with open(STATE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
+
+    return state
+
+def cmd_set(target, level, charging_str="false"):
+    target = target.lower()
+    if target not in ["phone", "watch"]:
+        print("Target must be 'phone' or 'watch'")
+        sys.exit(1)
+
+    charging = charging_str.lower() in ["true", "1", "yes", "charging"]
+    try:
+        level_int = int(level)
+    except ValueError:
+        print("Level must be an integer between 0 and 100")
+        sys.exit(1)
+
+    state = get_current_state()
+    state[target] = {
+        "name": "Samsung Galaxy A55 5G" if target == "phone" else "Galaxy Watch 7",
+        "connected": True,
+        "level": max(0, min(100, level_int)),
+        "charging": charging,
+        "source": "manual"
+    }
+    
+    parts = []
+    if state["phone"]["connected"] and state["phone"]["level"] >= 0:
+        chg = " ⚡" if state["phone"]["charging"] else ""
+        parts.append(f"A55: {state['phone']['level']}%{chg}")
+    if state["watch"]["connected"] and state["watch"]["level"] >= 0:
+        chg = " ⚡" if state["watch"]["charging"] else ""
+        parts.append(f"Watch 7: {state['watch']['level']}%{chg}")
+
+    state["summary"] = " · ".join(parts)
+    state["has_data"] = True
+    state["updated_at"] = int(time.time())
+
+    with open(STATE_FILE, "w") as f:
+        json.dump(state, f, indent=2)
+
+    print(json.dumps(state, indent=2))
+    notify("Samsung Battery Updated", f"{target.title()}: {level_int}% {'⚡' if charging else ''}")
+
+def cmd_demo(mode="toggle"):
+    if mode == "toggle":
+        if os.path.exists(DEMO_FLAG):
+            os.remove(DEMO_FLAG)
+            print("Demo mode disabled")
+            notify("Samsung Battery", "Demo mode disabled (live detection active)")
+        else:
+            with open(DEMO_FLAG, "w") as f:
+                f.write("1")
+            print("Demo mode enabled")
+            notify("Samsung Battery", "Demo mode enabled (showing sample A55 & Watch 7 stats)")
+    elif mode == "on":
+        with open(DEMO_FLAG, "w") as f:
+            f.write("1")
+        print("Demo mode enabled")
+        notify("Samsung Battery", "Demo mode enabled")
+    elif mode == "off":
+        if os.path.exists(DEMO_FLAG):
+            os.remove(DEMO_FLAG)
+        print("Demo mode disabled")
+        notify("Samsung Battery", "Demo mode disabled")
+
+def print_help():
+    print("""samsung-battery — monitor battery of Samsung Galaxy A55 5G & Galaxy Watch 7
+
+Subcommands:
+  status               Print current battery status as JSON
+  refresh              Actively re-probe KDE Connect & UPower and print status
+  demo [on|off|toggle] Toggle sample data for testing the UI
+  set <phone|watch> <0-100> [charging:true|false]  Manually push battery level
+  pair-guide           Display setup instructions for A55 and Watch 7
+""")
+
+def print_pair_guide():
+    print("""
+=== Pairing Samsung Galaxy A55 5G & Galaxy Watch 7 to Arch Linux ===
+
+Method 1: KDE Connect (Recommended for both Phone and Watch)
+  1. Install KDE Connect on Linux:
+     sudo pacman -S kdeconnect
+  2. Launch the daemon:
+     kdeconnect-indicator &
+  3. On Samsung Galaxy A55 5G:
+     - Install 'KDE Connect' from Google Play Store or F-Droid.
+     - Open the app, ensure phone is on same Wi-Fi, tap your PC to Pair.
+  4. On Galaxy Watch 7 (Wear OS 5):
+     - Open Google Play Store directly on your Watch.
+     - Search and install 'KDE Connect'.
+     - Open KDE Connect on the watch and pair it with your PC!
+  5. Once paired, battery levels will update automatically in this widget!
+
+Method 2: Webhook / Tasker / Termux Push
+  You can push battery levels anytime using:
+  samsung-battery set phone <percent> <charging:true|false>
+  samsung-battery set watch <percent> <charging:true|false>
+""")
+
+def main():
+    args = sys.argv[1:]
+    if not args or args[0] == "status":
+        print(json.dumps(get_current_state()))
+    elif args[0] == "refresh":
+        print(json.dumps(get_current_state()))
+    elif args[0] == "demo":
+        mode = args[1] if len(args) > 1 else "toggle"
+        cmd_demo(mode)
+    elif args[0] == "set":
+        if len(args) < 3:
+            print("Usage: samsung-battery set <phone|watch> <percentage> [charging:true|false]")
+            sys.exit(1)
+        charging = args[3] if len(args) > 3 else "false"
+        cmd_set(args[1], args[2], charging)
+    elif args[0] == "pair-guide":
+        print_pair_guide()
+    else:
+        print_help()
+
+if __name__ == "__main__":
+    main()

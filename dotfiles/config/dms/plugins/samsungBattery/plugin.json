@@ -1,0 +1,15 @@
+{
+    "id": "samsungBattery",
+    "name": "Samsung Battery Monitor",
+    "description": "Live battery & charging monitor for Samsung Galaxy A55 5G and Galaxy Watch 7",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": ["dankbar-widget", "control-center"],
+    "component": "./SamsungBatteryWidget.qml",
+    "icon": "battery_charging_full",
+    "permissions": [
+        "process",
+        "settings_read"
+    ]
+}

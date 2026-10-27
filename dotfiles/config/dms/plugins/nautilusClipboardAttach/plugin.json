@@ -1,0 +1,16 @@
+{
+    "id": "nautilusClipboardAttach",
+    "name": "Nautilus Clipboard Attach",
+    "description": "Smartly converts files and images copied in Nautilus into attachable clipboard data for Antigravity CLI, OpenCode, and browsers",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": ["dankbar-widget", "control-center", "clipboard"],
+    "component": "./NautilusAttachWidget.qml",
+    "icon": "attach_file",
+    "permissions": [
+        "settings_read",
+        "settings_write",
+        "process"
+    ]
+}

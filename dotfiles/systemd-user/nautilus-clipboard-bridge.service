@@ -1,0 +1,13 @@
+[Unit]
+Description=Nautilus Clipboard Attach Bridge for Niri / Wayland
+Documentation=file://__HOME__/.local/bin/nautilus-clipboard-bridge
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=__HOME__/.local/bin/nautilus-clipboard-bridge
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target niri.service

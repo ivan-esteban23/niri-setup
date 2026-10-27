@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=WeChat
+Name[zh_CN]=微信
+Comment=WeChat messaging
+Exec=__HOME__/.local/share/appimages/WeChatLinux_x86_64.AppImage %U
+Icon=wechat-appimage
+Terminal=false
+Categories=Network;InstantMessaging;Chat;
+Keywords=wechat;weixin;微信;chat;
+StartupNotify=true

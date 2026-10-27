@@ -1,0 +1,23 @@
+{
+  "nautilusClipboardAttach": {
+    "enabled": true
+  },
+  "clipboardHistoryPlus": {
+    "enabled": true
+  },
+  "mediaThumbnailEnhancer": {
+    "enabled": true
+  },
+  "sudoTimer": {
+    "enabled": true
+  },
+  "imgPrompt": {
+    "enabled": true
+  },
+  "webappManager": {
+    "enabled": true
+  },
+  "samsungBattery": {
+    "enabled": true
+  }
+}

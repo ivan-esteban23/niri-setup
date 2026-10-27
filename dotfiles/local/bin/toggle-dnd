@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Toggle Do Not Disturb in DMS and show an on-screen toast notification
+
+dms ipc call notifications toggleDoNotDisturb >/dev/null 2>&1
+status=$(dms ipc call notifications getDoNotDisturb 2>/dev/null | tail -n 1)
+
+if [ "$status" = "true" ]; then
+    dms ipc call toast info "Do Not Disturb: ON" >/dev/null 2>&1
+else
+    dms ipc call toast info "Do Not Disturb: OFF" >/dev/null 2>&1
+fi

@@ -1,0 +1,15 @@
+{
+    "id": "webappManager",
+    "name": "WebApp Manager",
+    "description": "Install any website as a WebApp (Brave Origin app window) and remove existing ones — apps appear in Spotlight and the app menu",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": ["dankbar-widget", "control-center"],
+    "component": "./WebAppManagerWidget.qml",
+    "icon": "web_asset",
+    "permissions": [
+        "process",
+        "settings_read"
+    ]
+}

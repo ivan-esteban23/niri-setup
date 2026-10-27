@@ -1,0 +1,309 @@
+#!/usr/bin/env python3
+"""
+Helper CLI for Nautilus Clipboard Attach & Clipboard History plugins.
+Provides smart image/file clipboard copying, URI-list conversion, and saving
+clipboard or history entries directly as files in Nautilus.
+"""
+
+import base64
+import datetime
+import json
+import mimetypes
+import os
+import subprocess
+import sys
+import time
+import urllib.parse
+from pathlib import Path
+
+CACHE_DIR = Path.home() / ".cache" / "nautilus-clipboard-bridge"
+STATE_FILE = CACHE_DIR / "last_attached.json"
+
+IMAGE_EXTS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tiff", ".tif", ".ico", ".avif"
+}
+
+
+def notify(title: str, body: str, icon: str = "edit-paste") -> None:
+    try:
+        subprocess.Popen(
+            ["notify-send", "-a", "Clipboard Plugin", "-i", icon, title, body],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
+
+
+def wl_copy(data: bytes, mime_type: str = "text/plain;charset=utf-8") -> bool:
+    try:
+        proc = subprocess.Popen(
+            ["wl-copy", "--type", mime_type],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        proc.communicate(input=data, timeout=5)
+        return proc.returncode == 0
+    except Exception:
+        return False
+
+
+def save_state(mode: str, paths: list[str], mime_type: str) -> None:
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+            "mode": mode,
+            "paths": paths,
+            "name": os.path.basename(paths[0]) if paths else "",
+            "mimeType": mime_type,
+        }
+        STATE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def copy_image_pixels(filepath: str) -> tuple[bool, str]:
+    p = Path(filepath)
+    if not p.is_file():
+        return False, ""
+    ext = p.suffix.lower()
+    if ext == ".png":
+        data = p.read_bytes()
+        return wl_copy(data, "image/png"), "image/png"
+
+    # For ALL other image formats (JPEG, WebP, GIF, SVG, BMP, TIFF, AVIF),
+    # convert to PNG with fast compression so Wayland apps (Codex, agy, opencode, Discord, browsers)
+    # can read it as image/png without "no image on clipboard" errors.
+    try:
+        import gi
+        gi.require_version("GdkPixbuf", "2.0")
+        from gi.repository import GdkPixbuf
+
+        pixbuf = GdkPixbuf.Pixbuf.new_from_file(str(p))
+        ok, buf = pixbuf.save_to_bufferv("png", ["compression"], ["1"])
+        if ok and buf:
+            return wl_copy(bytes(buf), "image/png"), "image/png"
+    except Exception:
+        pass
+
+    try:
+        res = subprocess.run(
+            ["magick", str(p), "png:-"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        if res.returncode == 0 and res.stdout:
+            return wl_copy(res.stdout, "image/png"), "image/png"
+    except Exception:
+        pass
+
+    # Fallback to raw mime if conversion somehow failed
+    mime, _ = mimetypes.guess_type(str(p))
+    mime = mime or "application/octet-stream"
+    return wl_copy(p.read_bytes(), mime), mime
+
+
+def cmd_smart(paths: list[str], quiet: bool = False) -> int:
+    clean_paths = [os.path.abspath(p) for p in paths if os.path.exists(p)]
+    if not clean_paths:
+        return 1
+
+    if len(clean_paths) == 1:
+        p = Path(clean_paths[0])
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTS:
+            ok, mime = copy_image_pixels(str(p))
+            if ok:
+                save_state("image-attach", clean_paths, mime)
+                if not quiet:
+                    notify(
+                        "📎 Image Ready to Attach",
+                        f"{p.name}\nCopied as {mime} (ready to paste)",
+                        "image-x-generic",
+                    )
+                return 0
+
+    # Non-image file(s) or folder(s): copy clean path(s)
+    text = "\n".join(clean_paths)
+    ok = wl_copy(text.encode("utf-8"), "text/plain;charset=utf-8")
+    if ok:
+        save_state("path-attach", clean_paths, "text/plain")
+        if not quiet:
+            label = os.path.basename(clean_paths[0]) if len(clean_paths) == 1 else f"{len(clean_paths)} items"
+            notify("📎 Path Ready to Paste", f"{label}\n{text}", "text-x-generic")
+        return 0
+    return 1
+
+
+def cmd_image(paths: list[str]) -> int:
+    if not paths:
+        return 1
+    p = os.path.abspath(paths[0])
+    ok, mime = copy_image_pixels(p)
+    if ok:
+        save_state("image-only", [p], mime)
+        notify("🖼️ Image Copied to Clipboard", f"{os.path.basename(p)} ({mime})", "image-x-generic")
+        return 0
+    notify("⚠️ Failed to Copy Image", os.path.basename(p), "dialog-error")
+    return 1
+
+
+def cmd_path(paths: list[str], prefix: str = "") -> int:
+    clean_paths = [f"{prefix}{os.path.abspath(p)}" for p in paths]
+    if not clean_paths:
+        return 1
+    text = " ".join(clean_paths) if prefix == "@" else "\n".join(clean_paths)
+    if wl_copy(text.encode("utf-8"), "text/plain;charset=utf-8"):
+        save_state("at-path" if prefix else "path", clean_paths, "text/plain")
+        title = "🤖 Copied @path for AI Prompt" if prefix else "📍 File Path Copied"
+        notify(title, text, "edit-copy")
+        return 0
+    return 1
+
+
+def cmd_content(paths: list[str]) -> int:
+    chunks = []
+    for raw in paths:
+        p = Path(raw)
+        if p.is_file():
+            try:
+                content = p.read_text(encoding="utf-8", errors="replace")
+                if len(paths) > 1:
+                    chunks.append(f"// === {p.name} ===\n{content}")
+                else:
+                    chunks.append(content)
+            except Exception:
+                pass
+    if not chunks:
+        notify("⚠️ Cannot Copy Content", "Selected item is not a readable file.", "dialog-warning")
+        return 1
+    full_text = "\n\n".join(chunks)
+    if wl_copy(full_text.encode("utf-8"), "text/plain;charset=utf-8"):
+        save_state("content", [os.path.abspath(x) for x in paths], "text/plain")
+        notify("📄 File Content Copied", f"Copied {len(full_text):,} chars from {len(chunks)} file(s)", "text-x-generic")
+        return 0
+    return 1
+
+
+def parse_uri_list(raw: str) -> list[str]:
+    paths = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("file://"):
+            parsed = urllib.parse.urlparse(line)
+            path = urllib.parse.unquote(parsed.path)
+            if os.path.exists(path):
+                paths.append(path)
+    return paths
+
+
+def cmd_convert_uri_list(quiet: bool = False) -> int:
+    try:
+        types_out = subprocess.check_output(["wl-paste", "--list-types"], text=True, timeout=2).splitlines()
+    except Exception:
+        return 1
+    if "text/uri-list" not in types_out and "x-special/gnome-copied-files" not in types_out:
+        return 1
+    # Don't re-convert if image/png or image/jpeg is already on the clipboard
+    if any(t.startswith("image/") for t in types_out):
+        return 0
+    try:
+        raw_uris = subprocess.check_output(["wl-paste", "--type", "text/uri-list"], text=True, timeout=2)
+    except Exception:
+        return 1
+    paths = parse_uri_list(raw_uris)
+    if not paths:
+        return 1
+    return cmd_smart(paths, quiet=quiet)
+
+
+def save_entry_to_folder(folder: str, entry_id: int | None = None) -> int:
+    target_dir = Path(folder)
+    if target_dir.is_file():
+        target_dir = target_dir.parent
+    if not target_dir.is_dir():
+        return 1
+
+    ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
+    if entry_id is not None:
+        try:
+            raw = subprocess.check_output(["dms", "clipboard", "get", str(entry_id), "--json"], text=True, timeout=4)
+            info = json.loads(raw)
+            data = base64.b64decode(info.get("data", ""))
+            mime = info.get("mimeType", "text/plain")
+            is_img = bool(info.get("isImage"))
+            if is_img or mime.startswith("image/"):
+                ext = ".jpg" if "jpeg" in mime or "jpg" in mime else ".png"
+                out_path = target_dir / f"clipboard-{entry_id}-{ts}{ext}"
+            else:
+                out_path = target_dir / f"clipboard-{entry_id}-{ts}.txt"
+            out_path.write_bytes(data)
+            notify("💾 Saved Clipboard History Item", f"Saved to {out_path.name}", "document-save")
+            return 0
+        except Exception as e:
+            notify("⚠️ Failed to Save History Item", str(e), "dialog-error")
+            return 1
+
+    # Save current active clipboard to folder
+    try:
+        types_out = subprocess.check_output(["wl-paste", "--list-types"], text=True, timeout=2).splitlines()
+    except Exception:
+        return 1
+
+    img_mimes = [t for t in types_out if t in ("image/png", "image/jpeg", "image/webp", "image/gif")]
+    if img_mimes:
+        mime = "image/png" if "image/png" in img_mimes else img_mimes[0]
+        ext = ".png" if "png" in mime else (".jpg" if "jpeg" in mime else ".img")
+        data = subprocess.check_output(["wl-paste", "--type", mime], timeout=4)
+        out_path = target_dir / f"clipboard-{ts}{ext}"
+        out_path.write_bytes(data)
+        notify("💾 Saved Clipboard Image Here", str(out_path.name), "image-x-generic")
+        return 0
+
+    try:
+        data = subprocess.check_output(["wl-paste", "--no-newline"], timeout=4)
+        out_path = target_dir / f"clipboard-{ts}.txt"
+        out_path.write_bytes(data)
+        notify("💾 Saved Clipboard Text Here", str(out_path.name), "text-x-generic")
+        return 0
+    except Exception:
+        return 1
+
+
+def main() -> int:
+    if len(sys.argv) < 2:
+        print("Usage: clip-attach-helper <smart|image|path|at-path|content|convert-uri-list|paste-into> [args...]")
+        return 1
+    cmd = sys.argv[1]
+    args = sys.argv[2:]
+    if cmd == "smart":
+        quiet = "--quiet" in args
+        paths = [a for a in args if a != "--quiet"]
+        return cmd_smart(paths, quiet=quiet)
+    elif cmd == "image":
+        return cmd_image(args)
+    elif cmd == "path":
+        return cmd_path(args, prefix="")
+    elif cmd == "at-path":
+        return cmd_path(args, prefix="@")
+    elif cmd == "content":
+        return cmd_content(args)
+    elif cmd == "convert-uri-list":
+        quiet = "--quiet" in args
+        return cmd_convert_uri_list(quiet=quiet)
+    elif cmd == "paste-into":
+        if not args:
+            return 1
+        folder = args[0]
+        entry_id = int(args[1]) if len(args) > 1 else None
+        return save_entry_to_folder(folder, entry_id=entry_id)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,82 @@
+#:schema https://yazi-rs.github.io/schemas/theme.json
+
+[mgr]
+cwd = { fg = "#d0bcff", bold = true }
+
+find_keyword  = { fg = "#ffda72", bold = true, italic = true, underline = true }
+find_position = { fg = "#ded0ff", bg = "reset", bold = true, italic = true }
+
+symlink_target = { fg = "#bca5f2", italic = true }
+
+marker_copied   = { fg = "#7fff9a", bg = "#7fff9a" }
+marker_cut      = { fg = "#ff728f", bg = "#ff728f" }
+marker_marked   = { fg = "#d0bcff", bg = "#d0bcff" }
+marker_selected = { fg = "#ffda72", bg = "#ffda72" }
+marker_symbol   = "│"
+
+count_copied   = { fg = "#141218", bg = "#7fff9a", bold = true }
+count_cut      = { fg = "#141218", bg = "#ff728f", bold = true }
+count_selected = { fg = "#141218", bg = "#ffda72", bold = true }
+
+border_symbol = "│"
+border_style  = { fg = "#4f378b" }
+
+[tabs]
+active   = { fg = "#141218", bg = "#d0bcff", bold = true }
+inactive = { fg = "#e6e0e9", bg = "#2b292f" }
+
+[mode]
+normal_main = { fg = "#141218", bg = "#d0bcff", bold = true }
+normal_alt  = { fg = "#d0bcff", bg = "#2b292f" }
+
+select_main = { fg = "#141218", bg = "#bca5f2", bold = true }
+select_alt  = { fg = "#bca5f2", bg = "#2b292f" }
+
+unset_main  = { fg = "#141218", bg = "#ff728f", bold = true }
+unset_alt   = { fg = "#ff728f", bg = "#2b292f" }
+
+[status]
+perm_sep   = { fg = "#434149" }
+perm_type  = { fg = "#7fff9a" }
+perm_read  = { fg = "#ffda72" }
+perm_write = { fg = "#ff728f" }
+perm_exec  = { fg = "#d0bcff" }
+
+progress_label  = { fg = "#e6e0e9", bold = true }
+progress_normal = { fg = "#d0bcff", bg = "#2b292f" }
+progress_error  = { fg = "#ff728f", bg = "#2b292f" }
+
+[which]
+border          = { fg = "#4f378b" }
+cand            = { fg = "#d0bcff" }
+rest            = { fg = "#434149" }
+desc            = { fg = "#e6e0e9" }
+separator_style = { fg = "#4f378b" }
+
+[confirm]
+border = { fg = "#d0bcff" }
+title  = { fg = "#d0bcff", bold = true }
+
+[input]
+border = { fg = "#d0bcff" }
+title  = { fg = "#d0bcff", bold = true }
+
+[pick]
+border = { fg = "#d0bcff" }
+active = { fg = "#d0bcff", bold = true }
+
+[cmp]
+border = { fg = "#d0bcff" }
+active = { fg = "#141218", bg = "#d0bcff", bold = true }
+
+[tasks]
+border  = { fg = "#d0bcff" }
+title   = { fg = "#d0bcff", bold = true }
+hovered = { fg = "#d0bcff", underline = true }
+
+[help]
+on   = { fg = "#d0bcff" }
+run  = { fg = "#bca5f2" }
+desc = { fg = "#e6e0e9" }
+hovered = { bg = "#4f378b", bold = true }
+footer  = { fg = "#141218", bg = "#d0bcff" }

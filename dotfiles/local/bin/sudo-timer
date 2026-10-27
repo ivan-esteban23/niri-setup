@@ -1,0 +1,183 @@
+#!/usr/bin/env bash
+# sudo-timer — passwordless sudo for 600 minutes via a keepalive monitor.
+# One password entry, then `sudo -n` works until the deadline.
+# Subcommands: start | auth | status | tick | stop | expire
+set -u
+
+STATE_DIR="$HOME/.cache/sudo-timer"
+STATE_FILE="$STATE_DIR/state.json"
+DURATION_MIN="${SUDO_TIMER_MINUTES:-600}"
+REFRESH_SEC="${SUDO_TIMER_REFRESH_SEC:-300}"
+TERMINAL="${SUDO_TIMER_TERMINAL:-alacritty}"
+SCRIPT="$(readlink -f "$0")"
+NOTIFY_ICON="security-high"
+
+now() { date +%s; }
+human_until() { date -d "@$1" '+%H:%M:%S'; }
+
+notify() { # $1 urgency, $2 title, $3 body
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send -u "$1" -i "$NOTIFY_ICON" -a "Sudo Timer" "$2" "$3" 2>/dev/null &
+    return 0
+}
+
+state_until() {
+    [ -f "$STATE_FILE" ] || return 1
+    jq -r '.until // 0' "$STATE_FILE" 2>/dev/null
+}
+
+is_active() {
+    local until
+    until=$(state_until) || return 1
+    [ "$until" -gt "$(now)" ] || return 1
+    sudo -n -v 2>/dev/null
+}
+
+write_state() { # $1 = until epoch
+    mkdir -p "$STATE_DIR"
+    printf '{"until":%s,"started":%s}\n' "$1" "$(now)" > "$STATE_FILE"
+}
+
+clear_state() { rm -f "$STATE_FILE"; }
+
+# --- start ---------------------------------------------------------------------
+# Refresh if active; otherwise open a terminal for the one-time password entry.
+cmd_start() {
+    if is_active; then
+        local until
+        until=$(( $(now) + DURATION_MIN * 60 ))
+        write_state "$until"
+        echo "Sudo timer refreshed — passwordless until $(human_until "$until")"
+        notify normal "Sudo Timer refreshed" "Passwordless sudo until $(human_until "$until")"
+        exit 0
+    fi
+    if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v "$TERMINAL" >/dev/null 2>&1; then
+        setsid "$TERMINAL" -e "$SCRIPT" auth >/dev/null 2>&1 &
+        echo "Opened a terminal for one-time sudo authorization…"
+    else
+        exec "$SCRIPT" auth
+    fi
+}
+
+# --- auth ----------------------------------------------------------------------
+# Runs inside the spawned terminal. Ask the password ONCE, write state, spawn monitor.
+cmd_auth() {
+    echo "Sudo Timer: enter your password once to enable"
+    echo "passwordless sudo for $DURATION_MIN minutes."
+    if ! sudo -v; then
+        echo "✗ Authorization failed."
+        sleep 3
+        exit 1
+    fi
+    local until
+    until=$(( $(now) + DURATION_MIN * 60 ))
+    # Detached keepalive monitor:
+    #   - refreshes the timestamp every REFRESH_SEC
+    #   - checks the state file every 5s so `stop` ends it promptly
+    #   - raises "expired" notify and exits at the deadline
+    setsid -f bash -c "
+        while true; do
+            t=0
+            while [ \$t -lt $REFRESH_SEC ]; do
+                sleep 5; t=\$((t+5))
+                [ -f '$STATE_FILE' ] || exit 0
+            done
+            if [ \$(date +%s) -ge $until ]; then
+                $SCRIPT expire
+                exit 0
+            fi
+            sudo -n -v 2>/dev/null || { sleep 2; sudo -n -v 2>/dev/null || exit 1; }
+        done
+    " 2>/dev/null &
+    write_state "$until"
+    echo "✔ Passwordless sudo ACTIVE until $(human_until "$until")"
+    echo "  (refresh every ${REFRESH_SEC}s — closing in 3s)"
+    notify normal "Sudo Timer active" "Passwordless sudo until $(human_until "$until")"
+    sleep 3
+    exit 0
+}
+
+# --- tick ----------------------------------------------------------------------
+# Called by the Dux plugin every REFRESH_SEC. Refreshes timestamp, reports state.
+# Output: "active <seconds-remaining>" | "expired" | "inactive"
+cmd_tick() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "inactive"
+        exit 0
+    fi
+    local until remain
+    until=$(state_until) || { echo "inactive"; exit 0; }
+    remain=$(( until - $(now) ))
+    if [ "$remain" -lt 0 ]; then
+        "$SCRIPT" expire
+        echo "expired"
+        exit 0
+    fi
+    if sudo -n -v 2>/dev/null; then
+        echo "active $remain"
+    else
+        echo "inactive"
+        exit 1
+    fi
+}
+
+# --- expire --------------------------------------------------------------------
+# Deadline reached (or user stopped): drop the sudo record and clear state.
+cmd_expire() {
+    [ -f "$STATE_FILE" ] || exit 0     # already stopped via `stop` — stay silent
+    kill_monitor
+    clear_state
+    sudo -k 2>/dev/null
+    echo "Sudo timer expired."
+    notify normal "Sudo Timer expired" "Sudo requires a password again."
+}
+
+kill_monitor() {
+    # Match only the detached monitor's bash -c (its cmdline embeds the state
+    # file path followed by the refresh command). The caller's own argv —
+    # "$SCRIPT expire" / "$SCRIPT stop" — contains neither, so no self-kill.
+    pkill -f --regexp "$STATE_FILE.*sudo -n -v" 2>/dev/null || true
+}
+
+# --- stop ----------------------------------------------------------------------
+cmd_stop() {
+    if [ -f "$STATE_FILE" ]; then
+        clear_state            # monitor sees this within 5s and exits silently
+        sudo -k 2>/dev/null
+        echo "Sudo timer stopped — passwordless disabled."
+        notify normal "Sudo Timer stopped" "Sudo requires a password again."
+    else
+        echo "Sudo timer is not active."
+    fi
+}
+
+# --- status ----------------------------------------------------------------------
+cmd_status() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "inactive"
+        exit 0
+    fi
+    local until remain
+    until=$(state_until) || { echo "inactive"; exit 0; }
+    remain=$(( until - $(now) ))
+    if [ "$remain" -ge 0 ] && sudo -n true 2>/dev/null; then
+        printf 'active — passwordless for another %d min (until %s)\n' \
+            $(( remain / 60 )) "$(human_until "$until")"
+    elif [ "$remain" -ge 0 ]; then
+        clear_state
+        echo "inactive (sudo timestamp lost — state cleared)"
+    else
+        clear_state
+        echo "expired"
+    fi
+}
+
+case "${1:-status}" in
+    start)   cmd_start ;;
+    auth)    cmd_auth ;;
+    tick)    cmd_tick ;;
+    status)  cmd_status ;;
+    stop)    cmd_stop ;;
+    expire)  cmd_expire ;;
+    *) echo "usage: sudo-timer {start|auth|tick|status|stop|expire}"; exit 1 ;;
+esac

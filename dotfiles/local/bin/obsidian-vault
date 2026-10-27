@@ -1,0 +1,323 @@
+#!/usr/bin/env bash
+# obsidian-vault — Complete management, backup, sync, and snapshot CLI for Obsidian
+#
+# Commands:
+#   obsidian-vault status              Display vault health, stats, plugins, and git status
+#   obsidian-vault sync [message]      Stage, commit, and push changes to git remote
+#   obsidian-vault init-git [--github] Initialize git repo with optimized .gitignore (+ optional private GitHub repo)
+#   obsidian-vault backup [dest_dir]   Create a compressed .tar.zst snapshot (default: ~/backups/obsidian)
+#   obsidian-vault bundle [file]       Export portable vault archive for new machines
+#   obsidian-vault restore <archive>   Restore vault from bundle and register in ~/.config/obsidian/obsidian.json
+#   obsidian-vault new <title> [tags]  Create a new note with formatted YAML frontmatter
+
+set -euo pipefail
+
+VAULT_DIR="${OBSIDIAN_VAULT_DIR:-$HOME/Obsidian Vault}"
+CONFIG_DIR="$HOME/.config/obsidian"
+BACKUP_DIR="${OBSIDIAN_BACKUP_DIR:-$HOME/backups/obsidian}"
+KEEP_BACKUPS=10
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+say()  { printf "${CYAN}==>${NC} ${BOLD}%s${NC}\n" "$*"; }
+ok()   { printf "${GREEN}✔${NC} %s\n" "$*"; }
+warn() { printf "${YELLOW}⚠${NC} %s\n" "$*"; }
+die()  { printf "${RED}✖${NC} %s\n" "$*" >&2; exit 1; }
+
+ensure_vault() {
+    [ -d "$VAULT_DIR" ] || die "Vault directory not found: $VAULT_DIR"
+}
+
+# ── Status & Statistics ────────────────────────────────────────────────────────
+cmd_status() {
+    ensure_vault
+    say "Obsidian Vault Status: $VAULT_DIR"
+    echo
+
+    local notes attachments total_words size plugins snippets
+    notes=$(find "$VAULT_DIR" -maxdepth 2 -type f -name '*.md' | wc -l)
+    attachments=$(find "$VAULT_DIR/attachments" -type f 2>/dev/null | wc -l || echo 0)
+    total_words=$(find "$VAULT_DIR" -maxdepth 2 -type f -name '*.md' -exec wc -w {} + 2>/dev/null | awk '/total$/ {print $1}')
+    size=$(du -sh "$VAULT_DIR" | awk '{print $1}')
+    
+    plugins=0
+    [ -f "$VAULT_DIR/.obsidian/community-plugins.json" ] && \
+        plugins=$(jq '. | length' "$VAULT_DIR/.obsidian/community-plugins.json" 2>/dev/null || echo 0)
+    snippets=$(find "$VAULT_DIR/.obsidian/snippets" -type f -name '*.css' 2>/dev/null | wc -l || echo 0)
+
+    printf "  ${BOLD}Notes:${NC}         %d markdown files (~%s words)\n" "$notes" "${total_words:-0}"
+    printf "  ${BOLD}Attachments:${NC}   %d files\n" "$attachments"
+    printf "  ${BOLD}Disk Usage:${NC}    %s\n" "$size"
+    printf "  ${BOLD}Plugins:${NC}       %d active community plugins\n" "$plugins"
+    printf "  ${BOLD}CSS Snippets:${NC}  %d custom styling snippets\n" "$snippets"
+    echo
+
+    # Git Status
+    if [ -d "$VAULT_DIR/.git" ]; then
+        local branch remote changes
+        branch=$(git -C "$VAULT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "detached")
+        remote=$(git -C "$VAULT_DIR" config --get remote.origin.url || echo "none")
+        changes=$(git -C "$VAULT_DIR" status --porcelain | wc -l)
+
+        printf "  ${BOLD}Git Repo:${NC}      Active (branch: ${CYAN}%s${NC})\n" "$branch"
+        printf "  ${BOLD}Remote URL:${NC}    %s\n" "$remote"
+        if [ "$changes" -eq 0 ]; then
+            printf "  ${BOLD}Working Tree:${NC}  ${GREEN}Clean (up to date)${NC}\n"
+        else
+            printf "  ${BOLD}Working Tree:${NC}  ${YELLOW}%d uncommitted changes${NC} (run 'obsidian-vault sync')\n" "$changes"
+        fi
+        local last_commit
+        last_commit=$(git -C "$VAULT_DIR" log -1 --format="%cd (%cr) — %s" --date=short 2>/dev/null || echo "None")
+        printf "  ${BOLD}Last Commit:${NC}   %s\n" "$last_commit"
+    else
+        printf "  ${BOLD}Git Repo:${NC}      ${YELLOW}Not initialized${NC} (run 'obsidian-vault init-git' to enable versioning)\n"
+    fi
+}
+
+# ── Git Initialization ────────────────────────────────────────────────────────
+cmd_init_git() {
+    ensure_vault
+    local with_github=0
+    for arg in "$@"; do
+        [ "$arg" = "--github" ] && with_github=1
+    done
+
+    say "Setting up Git repository for: $VAULT_DIR"
+    
+    if [ ! -d "$VAULT_DIR/.git" ]; then
+        git -C "$VAULT_DIR" init
+        ok "Initialized Git repository"
+    else
+        warn "Git repository already exists in vault"
+    fi
+
+    # Write optimized .gitignore
+    local gitignore="$VAULT_DIR/.gitignore"
+    cat > "$gitignore" << 'EOF'
+# Obsidian workspace layout and dynamic caches
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+.obsidian/graph.json.bak
+.obsidian/cache/
+.obsidian/plugins/omnisearch/cache/
+.obsidian/plugins/recent-files-obsidian/data.json
+
+# Trash & OS artifacts
+.trash/
+.DS_Store
+*.tmp
+thumbs.db
+EOF
+    ok "Created optimized .gitignore (preserves plugins, settings & custom CSS snippets)"
+
+    git -C "$VAULT_DIR" add -A
+    if ! git -C "$VAULT_DIR" diff --cached --quiet; then
+        git -C "$VAULT_DIR" commit -m "feat(vault): initial vault snapshot & configuration"
+        ok "Created initial commit"
+    fi
+
+    if [ "$with_github" -eq 1 ]; then
+        if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then
+            say "Creating private GitHub repository via gh CLI..."
+            if ! git -C "$VAULT_DIR" remote get-url origin >/dev/null 2>&1; then
+                gh repo create "obsidian-vault" --private --source="$VAULT_DIR" --push --remote=origin
+                ok "Private GitHub repository created and linked to origin"
+            else
+                warn "Remote 'origin' is already configured: $(git -C "$VAULT_DIR" config --get remote.origin.url)"
+            fi
+        else
+            warn "gh CLI not authenticated. Push manually with: git remote add origin <url> && git push -u origin main"
+        fi
+    fi
+}
+
+# ── Sync (Git Commit & Push) ──────────────────────────────────────────────────
+cmd_sync() {
+    ensure_vault
+    if [ ! -d "$VAULT_DIR/.git" ]; then
+        die "Vault is not a git repository. Run 'obsidian-vault init-git' first."
+    fi
+
+    local msg="${1:-}"
+    say "Syncing Obsidian Vault..."
+
+    # Pull if remote is configured
+    if git -C "$VAULT_DIR" remote get-url origin >/dev/null 2>&1; then
+        say "Pulling remote changes..."
+        git -C "$VAULT_DIR" pull --rebase origin "$(git -C "$VAULT_DIR" rev-parse --abbrev-ref HEAD)" 2>/dev/null || warn "Pull skipped or failed"
+    fi
+
+    git -C "$VAULT_DIR" add -A
+
+    if git -C "$VAULT_DIR" diff --cached --quiet; then
+        ok "No changes to commit. Vault is up to date."
+    else
+        local changed_files
+        changed_files=$(git -C "$VAULT_DIR" diff --cached --numstat | wc -l)
+        if [ -z "$msg" ]; then
+            msg="vault sync: $(date '+%Y-%m-%d %H:%M:%S') ($changed_files files updated)"
+        fi
+        git -C "$VAULT_DIR" commit -m "$msg"
+        ok "Committed: $msg"
+    fi
+
+    # Push if remote is configured
+    if git -C "$VAULT_DIR" remote get-url origin >/dev/null 2>&1; then
+        say "Pushing to remote repository..."
+        git -C "$VAULT_DIR" push origin "$(git -C "$VAULT_DIR" rev-parse --abbrev-ref HEAD)"
+        ok "Push successful"
+    else
+        warn "No remote repository configured. Changes committed locally."
+    fi
+}
+
+# ── Backup (Snapshot Archive) ─────────────────────────────────────────────────
+cmd_backup() {
+    ensure_vault
+    local target_dir="${1:-$BACKUP_DIR}"
+    mkdir -p "$target_dir"
+
+    local stamp archive
+    stamp=$(date +%Y%m%d-%H%M%S)
+    archive="$target_dir/obsidian-vault-$stamp.tar.zst"
+
+    say "Creating compressed snapshot: $archive"
+    tar --exclude='.git' \
+        --exclude='.obsidian/cache' \
+        --exclude='.obsidian/plugins/omnisearch/cache' \
+        -C "$(dirname "$VAULT_DIR")" \
+        -caf "$archive" "$(basename "$VAULT_DIR")"
+
+    local sz
+    sz=$(du -h "$archive" | awk '{print $1}')
+    ok "Snapshot created: $archive ($sz)"
+
+    # Rotate old backups
+    local total_backups
+    total_backups=$(find "$target_dir" -maxdepth 1 -name 'obsidian-vault-*.tar.zst' | wc -l)
+    if [ "$total_backups" -gt "$KEEP_BACKUPS" ]; then
+        say "Rotating old backups (retaining newest $KEEP_BACKUPS)..."
+        find "$target_dir" -maxdepth 1 -name 'obsidian-vault-*.tar.zst' -printf '%T+ %p\n' | \
+            sort | head -n -"$KEEP_BACKUPS" | cut -d' ' -f2- | xargs -r rm -f
+        ok "Cleanup complete"
+    fi
+}
+
+# ── Portable Bundle & Restore ─────────────────────────────────────────────────
+cmd_bundle() {
+    ensure_vault
+    local out="${1:-$HOME/obsidian-vault-portable.tar.zst}"
+    say "Creating portable bundle (complete vault + config registration): $out"
+
+    tar --exclude='.git' \
+        --exclude='.obsidian/cache' \
+        --exclude='.obsidian/plugins/omnisearch/cache' \
+        -C "$(dirname "$VAULT_DIR")" \
+        -caf "$out" "$(basename "$VAULT_DIR")"
+
+    ok "Portable bundle saved to: $out"
+    echo "   Restore on any machine with: obsidian-vault restore $out"
+}
+
+cmd_restore() {
+    local archive="${1:-}"
+    [ -n "$archive" ] || die "Usage: obsidian-vault restore <path/to/archive.tar.zst>"
+    [ -f "$archive" ] || die "Archive file not found: $archive"
+
+    say "Restoring Obsidian Vault from: $archive"
+    if [ -d "$VAULT_DIR" ]; then
+        local bak="$VAULT_DIR.backup-$(date +%Y%m%d-%H%M%S)"
+        warn "Existing vault found. Backing up to: $bak"
+        mv "$VAULT_DIR" "$bak"
+    fi
+
+    mkdir -p "$(dirname "$VAULT_DIR")"
+    tar -xf "$archive" -C "$(dirname "$VAULT_DIR")"
+    ok "Vault unpacked to: $VAULT_DIR"
+
+    # Register in ~/.config/obsidian/obsidian.json
+    mkdir -p "$CONFIG_DIR"
+    local vault_id ts
+    vault_id="c3091d3380ea513f"
+    ts=$(date +%s%3N)
+
+    cat > "$CONFIG_DIR/obsidian.json" << EOF
+{"vaults":{"$vault_id":{"path":"$VAULT_DIR","ts":$ts,"open":true}}}
+EOF
+    ok "Registered vault in $CONFIG_DIR/obsidian.json"
+}
+
+# ── Quick Note Creation ───────────────────────────────────────────────────────
+cmd_new() {
+    ensure_vault
+    local title="${1:-}"
+    [ -n "$title" ] || die "Usage: obsidian-vault new <Note Title> [tag1,tag2]"
+    local tags="${2:-notes}"
+
+    local filename="${title// / }.md"
+    local filepath="$VAULT_DIR/$filename"
+
+    if [ -f "$filepath" ]; then
+        die "Note already exists: $filepath"
+    fi
+
+    local date_str
+    date_str=$(date +%Y-%m-%d)
+
+    cat > "$filepath" << EOF
+---
+title: $title
+tags:
+$(echo "$tags" | tr ',' '\n' | sed 's/^/  - /')
+created: $date_str
+updated: $date_str
+---
+
+# $title
+
+EOF
+
+    ok "Created new note: $filepath"
+    echo "$filepath"
+}
+
+# ── Help / Usage ──────────────────────────────────────────────────────────────
+usage() {
+    cat << EOF
+${BOLD}obsidian-vault${NC} — Obsidian Vault CLI Management & Backup Suite
+
+${BOLD}USAGE:${NC}
+  obsidian-vault <command> [arguments]
+
+${BOLD}COMMANDS:${NC}
+  ${CYAN}status${NC}               Show vault statistics, notes, attachments, plugins, and git state
+  ${CYAN}sync [message]${NC}       Commit all changes and push to remote git repository
+  ${CYAN}init-git [--github]${NC}  Initialize git repository with optimized .gitignore (+ optional private GitHub repo)
+  ${CYAN}backup [dir]${NC}         Create a timestamped compressed .tar.zst snapshot in ~/backups/obsidian
+  ${CYAN}bundle [file]${NC}        Export portable archive of vault, plugins, and settings for migration
+  ${CYAN}restore <file>${NC}       Restore vault from archive and auto-register in ~/.config/obsidian
+  ${CYAN}new <title> [tags]${NC}   Create a new note with formatted YAML frontmatter and title
+
+${BOLD}ENVIRONMENT:${NC}
+  OBSIDIAN_VAULT_DIR   Path to vault (default: $HOME/Obsidian Vault)
+  OBSIDIAN_BACKUP_DIR  Path to backups (default: $HOME/backups/obsidian)
+EOF
+}
+
+case "${1:-status}" in
+    status)    cmd_status ;;
+    sync)      shift; cmd_sync "$@" ;;
+    init-git)  shift; cmd_init_git "$@" ;;
+    backup)    shift; cmd_backup "$@" ;;
+    bundle)    shift; cmd_bundle "$@" ;;
+    restore)   shift; cmd_restore "$@" ;;
+    new)       shift; cmd_new "$@" ;;
+    -h|--help|help) usage ;;
+    *) echo "Unknown command: $1" >&2; usage; exit 1 ;;
+esac

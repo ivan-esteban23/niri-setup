@@ -1,0 +1,721 @@
+#!/usr/bin/env python3
+"""
+Floating Clipboard & File Drag-and-Drop Shelf for Alacritty (`agy` & `opencode`),
+Brave Origin, and Niri.
+
+Features:
+- Opens as a compact floating window (app-id: com.danklinux.drag-shelf) over Alacritty
+- Materializes clipboard history images & text into real files in ~/.cache/clipboard-drag-shelf/
+  so even in-memory screenshots/clipboard images can be dragged with the mouse as real files
+  directly into Alacritty (`agy` / `opencode`)!
+- Provides 3 tabs:
+  1. "🕒 Clipboard" (Live clipboard history: images with thumbnails, copied files, and text)
+  2. "🖼️ Pictures" (Files in ~/Pictures with live thumbnails)
+  3. "📂 Vault & Docs" (Files in ~/Obsidian Vault, ~/Documents, plus any pinned files)
+- Every card is a native Wayland Gtk.DragSource offering `text/uri-list`, `text/plain`,
+  and `Gdk.FileList` AND automatically loads image pixels to the clipboard on drag start!
+"""
+
+import base64
+import datetime
+import json
+import os
+import subprocess
+import sys
+import urllib.parse
+from pathlib import Path
+
+import gi
+gi.require_version("Gtk", "4.0")
+gi.require_version("Gdk", "4.0")
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import Gdk, GdkPixbuf, Gio, GLib, Gtk, Pango
+
+SHELF_CACHE = Path.home() / ".cache" / "clipboard-drag-shelf"
+PINNED_FILE = SHELF_CACHE / "pinned_files.json"
+HELPER_BIN = str(Path.home() / ".local" / "bin" / "clip-attach-helper")
+
+IMAGE_EXTS = {
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".svg", ".tiff", ".tif", ".ico", ".avif"
+}
+
+DANK_CSS = """
+window {
+    background-color: #141218;
+    color: #e6e0e9;
+    font-family: "Inter", sans-serif;
+}
+.header-box {
+    background-color: #1d1b20;
+    padding: 10px 12px;
+    border-bottom: 1px solid #36343b;
+}
+.title-label {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #d0bcff;
+}
+.subtitle-label {
+    font-size: 11px;
+    color: #cac4d0;
+}
+.tab-btn {
+    background-color: #2b2930;
+    color: #cac4d0;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 11.5px;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+.tab-btn:hover {
+    background-color: #36343b;
+    color: #e6e0e9;
+}
+.tab-btn-active {
+    background-color: #4f378b;
+    color: #eaddff;
+    border: 1px solid #d0bcff;
+}
+.drag-card {
+    background-color: #1d1b20;
+    border: 1px solid #36343b;
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin: 4px 8px;
+}
+.drag-card:hover {
+    background-color: #2b2930;
+    border-color: #d0bcff;
+}
+.card-title {
+    font-weight: 600;
+    font-size: 12px;
+    color: #e6e0e9;
+}
+.card-meta {
+    font-size: 10.5px;
+    color: #938f99;
+    font-family: "JetBrainsMono Nerd Font", monospace;
+}
+.badge-pill {
+    background-color: #4f378b;
+    color: #eaddff;
+    border-radius: 6px;
+    padding: 2px 6px;
+    font-size: 10px;
+    font-weight: 700;
+}
+.action-btn {
+    background-color: #2b2930;
+    color: #d0bcff;
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #49454f;
+}
+.action-btn:hover {
+    background-color: #4f378b;
+    color: #ffffff;
+}
+"""
+
+
+def materialize_clipboard_entry(entry: dict) -> Path | None:
+    """Ensure a DMS clipboard history entry exists as a real draggable file on disk."""
+    SHELF_CACHE.mkdir(parents=True, exist_ok=True)
+    eid = entry.get("id", 0)
+    is_img = bool(entry.get("isImage"))
+    mime = str(entry.get("mimeType", "text/plain"))
+    preview = str(entry.get("preview", "")).strip()
+
+    # If it's a plain text path that already exists on disk, return that file directly!
+    if not is_img and preview.startswith("/") and "\n" not in preview and os.path.exists(preview):
+        return Path(preview)
+
+    ext = ".txt"
+    if is_img or mime.startswith("image/"):
+        if "jpeg" in mime or "jpg" in mime:
+            ext = ".jpg"
+        elif "webp" in mime:
+            ext = ".webp"
+        elif "gif" in mime:
+            ext = ".gif"
+        else:
+            ext = ".png"
+
+    cached_path = SHELF_CACHE / f"clipboard_{eid}{ext}"
+    if cached_path.is_file() and cached_path.stat().st_size > 0:
+        return cached_path
+
+    try:
+        raw = subprocess.check_output(
+            ["dms", "clipboard", "get", str(eid), "--json"],
+            text=True,
+            timeout=2.0,
+            stderr=subprocess.DEVNULL,
+        )
+        info = json.loads(raw)
+        data = base64.b64decode(info.get("data", ""))
+        if not data:
+            return None
+
+        # If mime is text/uri-list (e.g. from Nautilus), resolve the target file directly
+        if mime == "text/uri-list":
+            text_uris = data.decode("utf-8", errors="ignore")
+            for line in text_uris.splitlines():
+                if line.startswith("file://"):
+                    p = urllib.parse.unquote(urllib.parse.urlparse(line.strip()).path)
+                    if os.path.exists(p):
+                        return Path(p)
+
+        cached_path.write_bytes(data)
+        return cached_path
+    except Exception:
+        return None
+
+
+def fetch_clipboard_items(limit: int = 20) -> list[dict]:
+    results = []
+    try:
+        out = subprocess.check_output(
+            ["dms", "clipboard", "history", "--json"],
+            text=True,
+            timeout=2.0,
+            stderr=subprocess.DEVNULL,
+        )
+        entries = json.loads(out)
+        if not isinstance(entries, list):
+            return []
+        for entry in entries[:limit]:
+            path = materialize_clipboard_entry(entry)
+            if path and path.exists():
+                is_img = path.suffix.lower() in IMAGE_EXTS
+                preview = " ".join(str(entry.get("preview", "")).splitlines()).strip()
+                results.append(
+                    {
+                        "path": str(path),
+                        "title": path.name if is_img else (preview[:42] or path.name),
+                        "subtitle": f"#{entry.get('id')} • {path}",
+                        "badge": "IMAGE" if is_img else "CLIP",
+                        "is_image": is_img,
+                    }
+                )
+    except Exception:
+        pass
+    return results
+
+
+def fetch_folder_items(folders: list[Path], limit: int = 30) -> list[dict]:
+    files: list[Path] = []
+    # Include any pinned files first
+    if PINNED_FILE.is_file():
+        try:
+            pinned = json.loads(PINNED_FILE.read_text(encoding="utf-8"))
+            for p in pinned:
+                fp = Path(p)
+                if fp.exists() and fp not in files:
+                    files.append(fp)
+        except Exception:
+            pass
+
+    for folder in folders:
+        if folder.is_dir():
+            try:
+                dir_files = sorted(
+                    [p for p in folder.iterdir() if not p.name.startswith(".") and p.is_file()],
+                    key=lambda x: x.stat().st_mtime,
+                    reverse=True,
+                )
+                for df in dir_files:
+                    if df not in files:
+                        files.append(df)
+            except Exception:
+                pass
+
+    results = []
+    for f in files[:limit]:
+        is_img = f.suffix.lower() in IMAGE_EXTS
+        size_kb = max(1, f.stat().st_size // 1024)
+        results.append(
+            {
+                "path": str(f),
+                "title": f.name,
+                "subtitle": f"{size_kb} KiB • {f.parent.name}/",
+                "badge": "IMAGE" if is_img else f.suffix.upper().lstrip(".") or "FILE",
+                "is_image": is_img,
+            }
+        )
+    return results
+
+
+def load_image_to_clipboard(filepath: str) -> bool:
+    """Load any image file into Wayland clipboard as standard image/png synchronously."""
+    try:
+        p = Path(filepath)
+        if not p.is_file():
+            return False
+        if p.suffix.lower() == ".png":
+            data = p.read_bytes()
+        else:
+            pixbuf = GdkPixbuf.Pixbuf.new_from_file(str(p))
+            ok, buf = pixbuf.save_to_bufferv("png", ["compression"], ["1"])
+            if not ok or not buf:
+                return False
+            data = bytes(buf)
+        proc = subprocess.Popen(
+            ["wl-copy", "--type", "image/png"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        proc.communicate(input=data, timeout=5)
+        return proc.returncode == 0
+    except Exception:
+        try:
+            res = subprocess.run([HELPER_BIN, "smart", "--quiet", filepath], timeout=5)
+            return res.returncode == 0
+        except Exception:
+            return False
+
+
+def find_target_terminal() -> tuple[int | None, int | None, str]:
+    """Find the most recently focused terminal window (Alacritty, Foot, Kitty, Ghostty).
+    Returns (window_id, process_pid, detected_tool)."""
+    try:
+        out = subprocess.check_output(["niri", "msg", "--json", "windows"], text=True)
+        windows = json.loads(out)
+        terms = []
+        for w in windows:
+            app_id = (w.get("app_id") or "").lower()
+            if any(t in app_id for t in ("alacritty", "foot", "kitty", "ghostty", "wezterm")) and "drag-shelf" not in app_id:
+                ts = w.get("focus_timestamp") or {}
+                terms.append((
+                    ts.get("secs", 0),
+                    ts.get("nanos", 0),
+                    w.get("id"),
+                    w.get("pid"),
+                    w.get("title") or "",
+                ))
+        if not terms:
+            return None, None, ""
+        terms.sort(key=lambda t: (t[0], t[1]), reverse=True)
+        best = terms[0]
+        term_id = best[2]
+        term_pid = best[3]
+
+        detected_tool = ""
+        if term_pid:
+            try:
+                pids_to_check = [str(term_pid)]
+                try:
+                    children = subprocess.check_output(["pgrep", "-P", str(term_pid)], text=True).splitlines()
+                    pids_to_check.extend(children)
+                    for cp in children:
+                        grand = subprocess.check_output(["pgrep", "-P", cp], text=True).splitlines()
+                        pids_to_check.extend(grand)
+                except Exception:
+                    pass
+
+                for p in pids_to_check:
+                    try:
+                        comm = Path(f"/proc/{p}/comm").read_text(encoding="utf-8").strip().lower()
+                        cmdline = Path(f"/proc/{p}/cmdline").read_text(encoding="utf-8").strip().lower()
+                        for tool in ("codex", "agy", "opencode", "claude"):
+                            if tool in comm or tool in cmdline:
+                                detected_tool = tool
+                                break
+                        if detected_tool:
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        return term_id, term_pid, detected_tool
+    except Exception:
+        return None, None, ""
+
+
+class DragShelfWindow(Gtk.ApplicationWindow):
+    def __init__(self, app: Gtk.Application) -> None:
+        super().__init__(application=app, title="Clipboard & File Drag Shelf")
+        self.set_default_size(370, 540)
+        self.current_tab = "clipboard"
+
+        # Apply Dark Material 3 CSS
+        provider = Gtk.CssProvider()
+        provider.load_from_data(DANK_CSS.encode("utf-8"))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        root_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
+        self.set_child(root_box)
+
+        # Header
+        header = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        header.add_css_class("header-box")
+        root_box.append(header)
+
+        top_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        header.append(top_row)
+
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        title_box.set_hexpand(True)
+        top_row.append(title_box)
+
+        lbl_title = Gtk.Label(label="🧲 Drag & Drop Clipboard Shelf", xalign=0)
+        lbl_title.add_css_class("title-label")
+        title_box.append(lbl_title)
+
+        lbl_sub = Gtk.Label(
+            label="Drag any item with your mouse into Alacritty (agy / opencode)",
+            xalign=0,
+        )
+        lbl_sub.add_css_class("subtitle-label")
+        title_box.append(lbl_sub)
+
+        refresh_btn = Gtk.Button(label="↻")
+        refresh_btn.add_css_class("action-btn")
+        refresh_btn.set_tooltip_text("Refresh clipboard & files")
+        refresh_btn.connect("clicked", lambda *_: self.reload_items())
+        top_row.append(refresh_btn)
+
+        # Tabs row
+        tab_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        header.append(tab_row)
+
+        self.tab_buttons: dict[str, Gtk.Button] = {}
+        for tab_id, tab_label in [
+            ("clipboard", "🕒 Clipboard"),
+            ("pictures", "🖼️ Pictures"),
+            ("docs", "📂 Vault & Docs"),
+        ]:
+            btn = Gtk.Button(label=tab_label)
+            btn.add_css_class("tab-btn")
+            btn.set_hexpand(True)
+            btn.connect("clicked", self.on_tab_clicked, tab_id)
+            tab_row.append(btn)
+            self.tab_buttons[tab_id] = btn
+
+        # Scrolled list of draggable cards
+        scrolled = Gtk.ScrolledWindow()
+        scrolled.set_vexpand(True)
+        scrolled.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        root_box.append(scrolled)
+
+        self.list_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.list_box.set_margin_top(6)
+        self.list_box.set_margin_bottom(8)
+        scrolled.set_child(self.list_box)
+
+        # Also accept files dropped ONTO the shelf to pin them!
+        drop_target = Gtk.DropTarget.new(Gdk.FileList, Gdk.DragAction.COPY)
+        drop_target.connect("drop", self.on_files_dropped_onto_shelf)
+        root_box.add_controller(drop_target)
+
+        # Close on Escape
+        key_ctrl = Gtk.EventControllerKey()
+        key_ctrl.connect("key-pressed", self.on_key_pressed)
+        self.add_controller(key_ctrl)
+
+        self.update_tab_styles()
+        self.reload_items()
+
+    def on_key_pressed(self, _ctrl, keyval: int, _keycode: int, _state: Gdk.ModifierType) -> bool:
+        if keyval == Gdk.KEY_Escape:
+            self.close()
+            return True
+        return False
+
+    def on_tab_clicked(self, _btn: Gtk.Button, tab_id: str) -> None:
+        self.current_tab = tab_id
+        self.update_tab_styles()
+        self.reload_items()
+
+    def update_tab_styles(self) -> None:
+        for tid, btn in self.tab_buttons.items():
+            if tid == self.current_tab:
+                btn.add_css_class("tab-btn-active")
+            else:
+                btn.remove_css_class("tab-btn-active")
+
+    def on_files_dropped_onto_shelf(self, _target, value, _x, _y) -> bool:
+        if isinstance(value, Gdk.FileList):
+            SHELF_CACHE.mkdir(parents=True, exist_ok=True)
+            pinned = []
+            if PINNED_FILE.is_file():
+                try:
+                    pinned = json.loads(PINNED_FILE.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            for gfile in value.get_files():
+                p = gfile.get_path()
+                if p and p not in pinned:
+                    pinned.insert(0, p)
+            PINNED_FILE.write_text(json.dumps(pinned[:25], indent=2), encoding="utf-8")
+            self.current_tab = "docs"
+            self.update_tab_styles()
+            self.reload_items()
+            return True
+        return False
+
+    def reload_items(self) -> None:
+        child = self.list_box.get_first_child()
+        while child is not None:
+            next_child = child.get_next_sibling()
+            self.list_box.remove(child)
+            child = next_child
+
+        if self.current_tab == "clipboard":
+            items = fetch_clipboard_items()
+        elif self.current_tab == "pictures":
+            items = fetch_folder_items([Path.home() / "Pictures"])
+        else:
+            items = fetch_folder_items(
+                [
+                    Path.home() / "Obsidian Vault",
+                    Path.home() / "Obsidian Vault" / "attachments",
+                    Path.home() / "Documents",
+                ]
+            )
+
+        if not items:
+            empty = Gtk.Label(label="No items found in this tab.")
+            empty.set_margin_top(40)
+            empty.add_css_class("subtitle-label")
+            self.list_box.append(empty)
+            return
+
+        for item in items:
+            card = self.build_draggable_card(item)
+            self.list_box.append(card)
+
+    def attach_to_terminal(self, filepath: str, is_image: bool) -> None:
+        """Attach or paste the given file into the active terminal window (Alacritty / Foot)."""
+        try:
+            # 1. Put into clipboard synchronously so it is 100% ready before any paste keystroke
+            if is_image:
+                load_image_to_clipboard(filepath)
+            else:
+                subprocess.run([HELPER_BIN, "path", filepath], check=False, timeout=2)
+
+            # 2. Find and focus the exact terminal window the user was using
+            term_id, term_pid, detected_tool = find_target_terminal()
+            if term_id is not None:
+                subprocess.run(["niri", "msg", "action", "focus-window", "--id", str(term_id)], check=False)
+                import time
+                time.sleep(0.15)
+
+            # 3. Simulate paste into terminal
+            if is_image:
+                # If an AI agent (Codex, agy, opencode) is running, send Ctrl+V
+                # The clipboard is guaranteed to hold image/png, so Codex/agy attaches it cleanly!
+                if detected_tool or term_id is not None:
+                    subprocess.Popen(["wtype", "-M", "ctrl", "-k", "v", "-m", "ctrl"])
+                    tool_label = detected_tool.title() if detected_tool else "Terminal"
+                    subprocess.Popen([
+                        "notify-send",
+                        "-a", "Drag Shelf",
+                        "-i", "image-x-generic",
+                        f"📎 Attached Image to {tool_label}",
+                        f"{os.path.basename(filepath)}\nSent image via Ctrl+V",
+                    ])
+                else:
+                    # In normal shell (bash/zsh/fish), type the path so it does not get ^V
+                    subprocess.Popen(["wtype", f" {filepath} "])
+                    subprocess.Popen([
+                        "notify-send",
+                        "-a", "Drag Shelf",
+                        "-i", "image-x-generic",
+                        "📍 Inserted Image Path to Terminal",
+                        filepath,
+                    ])
+            else:
+                # For non-image files, type the path directly
+                subprocess.Popen(["wtype", f" {filepath} "])
+                subprocess.Popen([
+                    "notify-send",
+                    "-a", "Drag Shelf",
+                    "-i", "text-x-generic",
+                    "📍 Inserted Path to Terminal",
+                    filepath,
+                ])
+        except Exception:
+            pass
+
+    def paste_path_to_terminal(self, filepath: str) -> None:
+        """Type the exact file path into the terminal prompt."""
+        try:
+            term_id, _pid, _tool = find_target_terminal()
+            if term_id is not None:
+                subprocess.run(["niri", "msg", "action", "focus-window", "--id", str(term_id)], check=False)
+                import time
+                time.sleep(0.15)
+
+            subprocess.Popen(["wtype", f" {filepath} "])
+        except Exception:
+            pass
+
+    def build_draggable_card(self, item: dict) -> Gtk.Widget:
+        filepath = item["path"]
+        is_image = item["is_image"]
+
+        card = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        card.add_css_class("drag-card")
+        card.set_tooltip_text(f"Drag with mouse into Alacritty / browser:\n{filepath}")
+
+        # Thumbnail or icon
+        if is_image:
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(filepath, 48, 48, True)
+                texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+                pic = Gtk.Picture.new_for_paintable(texture)
+                pic.set_size_request(48, 48)
+                card.append(pic)
+            except Exception:
+                icon = Gtk.Image.new_from_icon_name("image-x-generic")
+                icon.set_pixel_size(36)
+                card.append(icon)
+        else:
+            icon = Gtk.Image.new_from_icon_name("text-x-generic")
+            icon.set_pixel_size(36)
+            card.append(icon)
+
+        # Text info column
+        info_col = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        info_col.set_hexpand(True)
+        info_col.set_valign(Gtk.Align.CENTER)
+        card.append(info_col)
+
+        top_line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        info_col.append(top_line)
+
+        badge = Gtk.Label(label=item["badge"])
+        badge.add_css_class("badge-pill")
+        top_line.append(badge)
+
+        lbl_title = Gtk.Label(label=item["title"], xalign=0)
+        lbl_title.add_css_class("card-title")
+        lbl_title.set_ellipsize(Pango.EllipsizeMode.MIDDLE)
+        lbl_title.set_max_width_chars(24)
+        top_line.append(lbl_title)
+
+        lbl_meta = Gtk.Label(label=item["subtitle"], xalign=0)
+        lbl_meta.add_css_class("card-meta")
+        lbl_meta.set_ellipsize(Pango.EllipsizeMode.START)
+        lbl_meta.set_max_width_chars(34)
+        info_col.append(lbl_meta)
+
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
+        btn_box.set_valign(Gtk.Align.CENTER)
+        card.append(btn_box)
+
+        # 1-Click Attach to Terminal Button
+        attach_btn = Gtk.Button(label="⚡ Attach")
+        attach_btn.add_css_class("tab-btn-active")
+        attach_btn.set_tooltip_text("1-Click Attach directly to Alacritty (agy / opencode)")
+        attach_btn.connect("clicked", lambda *_: self.attach_to_terminal(filepath, is_image))
+        btn_box.append(attach_btn)
+
+        # Quick Path Button
+        path_btn = Gtk.Button(label="Path")
+        path_btn.add_css_class("action-btn")
+        path_btn.set_tooltip_text("Type clean file path into terminal")
+        path_btn.connect("clicked", lambda *_: self.paste_path_to_terminal(filepath))
+        btn_box.append(path_btn)
+
+        # Double click card to attach
+        click_gesture = Gtk.GestureClick.new()
+        click_gesture.connect("pressed", lambda gesture, n_press, x, y: self.attach_to_terminal(filepath, is_image) if n_press == 2 else None)
+        card.add_controller(click_gesture)
+
+        # Configure Gtk.DragSource for mouse drag-and-drop into Alacritty (`agy` / `opencode`)!
+        drag_source = Gtk.DragSource.new()
+        drag_source.set_actions(Gdk.DragAction.COPY)
+        drag_source.connect("prepare", self.on_drag_prepare, filepath, is_image)
+        drag_source.connect("drag-begin", self.on_drag_begin, filepath, is_image)
+        drag_source.connect("drag-cancel", self.on_drag_cancel, filepath, is_image)
+        card.add_controller(drag_source)
+
+        return card
+
+    def on_copy_clicked(self, _btn: Gtk.Button, filepath: str) -> None:
+        subprocess.Popen([HELPER_BIN, "smart", filepath])
+
+    def on_drag_cancel(self, _source: Gtk.DragSource, _drag: Gdk.Drag, reason: Gdk.DragCancelReason, filepath: str, is_image: bool) -> bool:
+        # When dragged onto Alacritty (which does not implement Wayland DnD targets),
+        # GTK receives drag-cancel with NO_TARGET. We catch this and auto-attach to Alacritty!
+        if reason == Gdk.DragCancelReason.NO_TARGET:
+            GLib.idle_add(self.attach_to_terminal, filepath, is_image)
+            return True
+        return False
+
+    def on_drag_prepare(self, _source: Gtk.DragSource, _x: float, _y: float, filepath: str, _is_img: bool):
+        gfile = Gio.File.new_for_path(filepath)
+        uri_str = gfile.get_uri() + "\r\n"
+        # Provide text/uri-list (used by terminals and browsers on Wayland),
+        # Gdk.FileList (used by GTK apps), and text/plain path!
+        p_uri = Gdk.ContentProvider.new_for_bytes("text/uri-list", GLib.Bytes.new(uri_str.encode("utf-8")))
+        p_txt = Gdk.ContentProvider.new_for_bytes(
+            "text/plain;charset=utf-8", GLib.Bytes.new((filepath + " ").encode("utf-8"))
+        )
+        fl = Gdk.FileList.new_from_list([gfile])
+        p_fl = Gdk.ContentProvider.new_for_value(fl)
+        return Gdk.ContentProvider.new_union([p_uri, p_fl, p_txt])
+
+    def on_drag_begin(self, source: Gtk.DragSource, _drag: Gdk.Drag, filepath: str, is_img: bool) -> None:
+        # Set drag preview icon
+        if is_img:
+            try:
+                pixbuf = GdkPixbuf.Pixbuf.new_from_file_at_scale(filepath, 64, 64, True)
+                texture = Gdk.Texture.new_for_pixbuf(pixbuf)
+                source.set_icon(texture, 32, 32)
+            except Exception:
+                pass
+            # Pre-load image into clipboard as image/png so it is already ready
+            GLib.idle_add(load_image_to_clipboard, filepath)
+        else:
+            subprocess.Popen([HELPER_BIN, "path", filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+class DragShelfApp(Gtk.Application):
+    def __init__(self) -> None:
+        super().__init__(
+            application_id="com.danklinux.drag-shelf",
+            flags=Gio.ApplicationFlags.FLAGS_NONE,
+        )
+        self.win: DragShelfWindow | None = None
+
+    def do_activate(self) -> None:
+        if self.win is None:
+            self.win = DragShelfWindow(self)
+        else:
+            self.win.reload_items()
+        self.win.present()
+
+
+def main() -> int:
+    # Optional CLI argument: pin file(s) before opening shelf
+    if len(sys.argv) > 1:
+        SHELF_CACHE.mkdir(parents=True, exist_ok=True)
+        pinned = []
+        if PINNED_FILE.is_file():
+            try:
+                pinned = json.loads(PINNED_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        for arg in sys.argv[1:]:
+            p = os.path.abspath(arg)
+            if os.path.exists(p) and p not in pinned:
+                pinned.insert(0, p)
+        PINNED_FILE.write_text(json.dumps(pinned[:25], indent=2), encoding="utf-8")
+
+    app = DragShelfApp()
+    return app.run([])
+
+
+if __name__ == "__main__":
+    sys.exit(main())

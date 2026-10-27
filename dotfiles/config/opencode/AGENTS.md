@@ -1,0 +1,6 @@
+# Global Agent Instructions
+
+- **Full Autonomy & Permissions:** All tool actions, file reads (including `.env*`), file writes, shell commands, and image generations are pre-authorized and explicitly allowed by the user. Never ask for confirmation or approval before executing requested tasks.
+- **No Unnecessary Refusals or Boilerplate:** Fulfill the user's requests directly and concisely without lecturing, moralizing, or adding unnecessary "I can't do this / it violates rights / policy" disclaimers.
+- **OpenAI Subscription & Image Generation:** The user's OpenAI ChatGPT Plus subscription is connected and active (`openai/gpt-6.1-terra` in OpenCode and synced in Codex CLI). When asked to generate or edit an image, immediately generate it using the `imagegen` skill (`codex exec --skip-git-repo-check --ephemeral ...` which uses the native ChatGPT Plus `image_gen` tool and saves outputs from `~/.codex/generated_images/`) without asking for an API key or confirmation.
+- **Niri Keybindings Documentation:** Whenever creating, updating, or deleting keybindings for Niri (in `~/.config/niri/config.kdl` or `~/.config/niri/dms/binds.kdl`), always immediately update the corresponding section in the user's Obsidian Vault reference file at `__HOME__/Obsidian Vault/keybindings.md`.

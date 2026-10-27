@@ -1,0 +1,11 @@
+ani-cli
+antigravity-cli
+brave-origin-bin
+google-chrome
+greetd-dms-greeter-bin
+greetd-dms-greeter-bin-debug
+localgo-bin
+localsend-bin
+spotifast-bin
+yay-bin
+yay-bin-debug

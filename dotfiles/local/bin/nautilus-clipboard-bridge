@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""
+Nautilus Clipboard Bridge Daemon for Niri / Wayland.
+Watches Niri window focus events: when you copy a file/image in Nautilus with Ctrl+C
+and switch focus to your terminal (Alacritty/Foot), browser (Brave Origin), or Obsidian,
+it automatically converts the Nautilus URI list into attachable image pixels (image/png / image/jpeg)
+or a clean file path so Ctrl+V / Alt+V attaches immediately.
+While focused inside Nautilus, normal file copy/paste between folders remains untouched.
+"""
+
+import json
+import subprocess
+import time
+from pathlib import Path
+
+CACHE_DIR = Path.home() / ".cache" / "nautilus-clipboard-bridge"
+CONFIG_FILE = CACHE_DIR / "config.json"
+HELPER_BIN = str(Path.home() / ".local" / "bin" / "clip-attach-helper")
+
+
+def is_enabled() -> bool:
+    try:
+        if CONFIG_FILE.is_file():
+            data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+            return bool(data.get("enabled", True))
+    except Exception:
+        pass
+    return True
+
+
+def run_event_loop() -> None:
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    if not CONFIG_FILE.exists():
+        CONFIG_FILE.write_text(json.dumps({"enabled": True}, indent=2), encoding="utf-8")
+
+    windows: dict[int, str] = {}
+    focused_id: int | None = None
+    last_app_id: str = ""
+
+    while True:
+        try:
+            proc = subprocess.Popen(
+                ["niri", "msg", "--json", "event-stream"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+            )
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except Exception:
+                    continue
+
+                if "WindowsChanged" in event:
+                    windows.clear()
+                    for w in event["WindowsChanged"].get("windows", []):
+                        wid = w.get("id")
+                        app_id = w.get("app_id") or ""
+                        if wid is not None:
+                            windows[wid] = app_id
+                        if w.get("is_focused"):
+                            focused_id = wid
+                            last_app_id = app_id
+
+                elif "WindowOpenedOrChanged" in event:
+                    w = event["WindowOpenedOrChanged"].get("window", {})
+                    wid = w.get("id")
+                    app_id = w.get("app_id") or ""
+                    if wid is not None:
+                        windows[wid] = app_id
+                    if w.get("is_focused"):
+                        prev_app = last_app_id
+                        focused_id = wid
+                        last_app_id = app_id
+                        if (
+                            is_enabled()
+                            and "nautilus" in prev_app.lower()
+                            and "nautilus" not in last_app_id.lower()
+                        ):
+                            subprocess.Popen([HELPER_BIN, "convert-uri-list"])
+
+                elif "WindowFocusChanged" in event:
+                    new_id = event["WindowFocusChanged"].get("id")
+                    prev_app = last_app_id
+                    focused_id = new_id
+                    new_app = windows.get(new_id, "") if new_id is not None else ""
+                    last_app_id = new_app
+                    if (
+                        is_enabled()
+                        and "nautilus" in prev_app.lower()
+                        and new_app
+                        and "nautilus" not in new_app.lower()
+                    ):
+                        subprocess.Popen([HELPER_BIN, "convert-uri-list"])
+
+            proc.wait()
+        except Exception:
+            pass
+        time.sleep(2)
+
+
+if __name__ == "__main__":
+    run_event_loop()

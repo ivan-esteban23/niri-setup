@@ -1,0 +1,16 @@
+{
+    "id": "mediaThumbnailEnhancer",
+    "name": "Universal Media Thumbnail & Metadata Enhancer",
+    "description": "Automatically resolves high-res album/video thumbnails and clean artist/track metadata for Bandcamp, YouTube, Spotify, SoundCloud, and any web media player",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "daemon",
+    "capabilities": ["media", "mpris", "monitoring"],
+    "component": "./MediaThumbnailDaemon.qml",
+    "icon": "album",
+    "permissions": [
+        "settings_read",
+        "settings_write",
+        "process"
+    ]
+}

@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# webapp — install a website as a WebApp (Brave app window) for your default browser.
+# Subcommands: install <url> [name] | list | remove <name|slug> | status
+set -u
+
+DIR="$HOME/.cache/webapps"
+APPS="$DIR/apps.json"
+DESKTOPS="$HOME/.local/share/applications"
+ICONS="$HOME/.local/share/icons/hicolor/128x128/apps"
+BROWSER="brave-origin"
+MARKER="managed-by=dux-webapp-plugin"
+
+mkdir -p "$DIR" "$DESKTOPS" "$ICONS"
+[ -s "$APPS" ] || echo "[]" > "$APPS"
+
+notify() {
+    command -v notify-send >/dev/null 2>&1 && \
+        notify-send -u "$1" -a "WebApp Manager" -i "$ICONS/webapp-$3.png" "$2" "$4" 2>/dev/null &
+    return 0
+}
+
+slugify() { tr -c 'A-Za-z0-9._-' '-' <<< "$1" | tr '[:upper:]' '[:lower:]' | sed 's/-\+/-/g; s/^-\|-$//'; }
+
+host_of() {
+    printf '%s\n' "$1" | sed -E 's#^[a-z]+://##; s#[/?].*##; s/:.*//' | tr '[:upper:]' '[:lower:]'
+}
+
+pretty_name() {
+    printf '%s\n' "$1" | sed 's/^www\.//; s/\.[a-z.]\+$//; s/[.-]/ /g' | awk '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) substr($i,2)}1'
+}
+
+fetch_icon() { # $1 host, $2 dest
+    curl -fsSL --max-time 15 "https://www.google.com/s2/favicons?domain=$1&sz=128" -o "$2" 2>/dev/null \
+        && file -b --mime-type "$2" | grep -q '^image/' && return 0
+    curl -fsSL --max-time 15 "https://$1/favicon.ico" -o "$2" 2>/dev/null \
+        && file -b --mime-type "$2" | grep -q '^image/' && return 0
+    rm -f "$2"; return 1
+}
+
+# --- install --------------------------------------------------------------------
+cmd_install() {
+    local url="${1:-}" name="${2:-}"
+    if [ -z "$url" ]; then echo "usage: webapp install <url> [name]"; exit 1; fi
+    case "$url" in
+        http://*|https://*) ;;
+        *) url="https://$url" ;;
+    esac
+    local host slug icon exec_line
+    host=$(host_of "$url")
+    [ -n "$host" ] || { echo "invalid URL: $url"; exit 1; }
+    [ -n "$name" ] || name=$(pretty_name "$host" | sed 's/\b\(.\)/\u\1/')
+    slug="webapp-$(slugify "$host")"
+    if jq -e --arg s "$slug" '.[] | select(.slug==$s)' "$APPS" | grep -q slug; then
+        echo "already installed: $name ($slug)"
+        notify normal "WebApp Manager" "$name is already installed" "info" "$slug"
+        exit 0
+    fi
+    icon="$ICONS/$slug.png"
+    if ! fetch_icon "$host" "$icon"; then
+        # no favicon available — let the .desktop Icon fall back to the browser icon
+        rm -f "$icon"
+        icon=""
+        notify normal "WebApp installed" "$name (no favicon found — generic icon)" "info" "$slug"
+    fi
+    exec_line="$BROWSER --app=$(printf '%s' "$url" | sed 's/"/\\\\\\"/g') --new-window %U"
+    local desktop="$DESKTOPS/$slug.desktop"
+    cat > "$desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=$name (WebApp)
+GenericName=Web Application
+Comment=Web app for $url
+Exec=$exec_line
+Icon=$icon
+Terminal=false
+Categories=Network;WebApps;
+StartupWMClass=$slug
+#$MARKER url=$url
+EOF
+    chmod 644 "$desktop"
+    jq --arg slug "$slug" --arg name "$name" --arg url "$url" --arg icon "$icon" --arg desktop "$desktop" \
+       '. += [{ "slug": $slug, "name": $name, "url": $url, "icon": $icon, "desktop": $desktop, "installed": (now|floor) }]' \
+       "$APPS" > "$APPS.tmp" && mv "$APPS.tmp" "$APPS"
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOPS" 2>/dev/null
+    echo "installed: $name (WebApp) — $url"
+    echo "  launcher: $desktop"
+    notify normal "WebApp installed" "$name (WebApp)\nOpen from Spotlight or the app menu" "info" "$slug"
+}
+
+# --- list -----------------------------------------------------------------------
+cmd_list() {
+    if [ ! -s "$APPS" ]; then echo "[]"; exit 0; fi
+    jq -r 'if length==0 then "[]" else (map("\(.name)\t\(.url)\t\(.slug)") | .[]) end' "$APPS"
+    total=$(jq length "$APPS")
+    if [ "$total" -gt 0 ]; then
+        echo "# $total web app(s)"
+    fi
+}
+
+# --- remove -----------------------------------------------------------------------
+cmd_remove() {
+    local key="${1:-}"
+    if [ -z "$key" ]; then echo "usage: webapp remove <name|slug|url>"; exit 1; fi
+    local row
+    row=$(jq -r --arg k "$key" \
+        '.[] | select(
+            (.slug|ascii_downcase)            == ($k|ascii_downcase)
+            or (.slug=="webapp-"+($k|ascii_downcase))
+            or (.name|ascii_downcase)         == ($k|ascii_downcase)
+            or (.name|ascii_downcase | sub(" \\(WebApp\\)$";"")) == ($k|ascii_downcase)
+            or (.url == $k)
+        ) | [.slug,.name,.desktop,.icon] | @tsv' "$APPS" 2>/dev/null | head -1)
+    if [ -z "$row" ]; then
+        echo "no web app matches: $key"
+        exit 1
+    fi
+    local slug name desktop icon
+    IFS=$'\t' read -r slug name desktop icon <<< "$row"
+    rm -f "$desktop" "$icon"
+    jq --arg s "$slug" '[.[] | select(.slug != $s)]' "$APPS" > "$APPS.tmp" && mv "$APPS.tmp" "$APPS"
+    command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOPS" 2>/dev/null
+    echo "removed: $name ($slug)"
+    notify normal "WebApp removed" "$name is gone from your app menu" "info" "$slug"
+}
+
+case "${1:-list}" in
+    install) shift; cmd_install "$@" ;;
+    list)    cmd_list ;;
+    remove)  shift; cmd_remove "$@" ;;
+    *) echo "usage: webapp {install <url> [name]|list|remove}"; exit 1 ;;
+esac
