@@ -67,5 +67,12 @@
         }
       }
     }
+  },
+  "agents": {
+    "qoder": {
+      "description": "Delegate tasks and coding to Qoder CLI",
+      "mode": "subagent",
+      "system": "You are a bridge to Qoder CLI. Execute requested queries or coding tasks using the shell tool: `qodercli --dangerously-skip-permissions -p \"<prompt>\"` and return the response."
+    }
   }
 }
