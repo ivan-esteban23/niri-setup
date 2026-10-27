@@ -18,8 +18,15 @@ say "Package lists"
 pacman -Qqen | sort > "$PKG/pacman.txt"   # explicit, native repo
 pacman -Qqem | sort > "$PKG/aur.txt"      # explicit, foreign (AUR)
 
+# Explicitly ensure required runtime packages for custom scripts & Hyprland are included
+REQUIRED_PKGS=(python python-gobject gtk4 imagemagick libnotify upower zstd curl tar hyprland xdg-desktop-portal-hyprland)
+for p in "${REQUIRED_PKGS[@]}"; do
+    pacman -Q "$p" >/dev/null 2>&1 && echo "$p" >> "$PKG/pacman.txt"
+done
+sort -u "$PKG/pacman.txt" -o "$PKG/pacman.txt"
+
 # ── ~/.config directories ─────────────────────────────────────────────────────
-CONFIG_DIRS=(alacritty foot btop cava fontconfig gtk-3.0 gtk-4.0 mpv niri yazi fish
+CONFIG_DIRS=(alacritty foot btop cava fontconfig gtk-3.0 gtk-4.0 mpv niri hypr yazi fish
              environment.d desktop nautilus)
 say "~/.config dirs"
 for d in "${CONFIG_DIRS[@]}"; do

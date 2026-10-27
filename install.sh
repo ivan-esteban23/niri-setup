@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install.sh — rebuild this Niri + Dux Shell (DMS) desktop on a fresh Arch Linux install.
+# install.sh — rebuild this Niri + Hyprland + Dux Shell (DMS) desktop on a fresh Arch Linux install.
 #
 # Usage:
 #   ./install.sh [options]
@@ -53,7 +53,7 @@ command -v sudo >/dev/null || die "sudo is required."
 say "Bundle: $BUNDLE"
 say "Target user: $USER  ($HOME)"
 if [ "$ASSUME_YES" != 1 ] && [ "$DRY" != 1 ]; then
-    read -rp "Install Niri + Dux Shell setup now? Existing configs are backed up. [y/N] " ans
+    read -rp "Install Niri + Hyprland + Dux Shell setup now? Existing configs are backed up. [y/N] " ans
     [[ "$ans" =~ ^[Yy]$ ]] || exit 0
 fi
 [ "$DRY" = 1 ] || sudo -v
@@ -201,10 +201,13 @@ fi
 # ── 5. User services & wiring ─────────────────────────────────────────────────
 say "Wiring user services (DMS + Nautilus bridge)"
 if [ "$DRY" != 1 ]; then
-    mkdir -p "$HOME/.config/systemd/user/niri.service.wants" "$HOME/.config/systemd/user/default.target.wants"
+    mkdir -p "$HOME/.config/systemd/user/niri.service.wants" \
+             "$HOME/.config/systemd/user/hyprland-session.target.wants" \
+             "$HOME/.config/systemd/user/default.target.wants"
     ln -sfn /usr/lib/systemd/user/dms.service "$HOME/.config/systemd/user/niri.service.wants/dms.service"
+    ln -sfn /usr/lib/systemd/user/dms.service "$HOME/.config/systemd/user/hyprland-session.target.wants/dms.service"
     if [ -f "$HOME/.config/systemd/user/nautilus-clipboard-bridge.service" ]; then
-        for w in niri.service.wants default.target.wants; do
+        for w in niri.service.wants hyprland-session.target.wants default.target.wants; do
             ln -sfn "$HOME/.config/systemd/user/nautilus-clipboard-bridge.service" \
                     "$HOME/.config/systemd/user/$w/nautilus-clipboard-bridge.service"
         done
@@ -228,12 +231,16 @@ if [ "$DRY" != 1 ] && command -v niri >/dev/null; then
     say "Validating Niri config"
     niri validate --config "$HOME/.config/niri/config.kdl" || warn "niri config reported problems"
 fi
+if [ "$DRY" != 1 ] && command -v Hyprland >/dev/null && [ -f "$HOME/.config/hypr/hyprland.lua" ]; then
+    say "Validating Hyprland config"
+    Hyprland -c "$HOME/.config/hypr/hyprland.lua" --verify-config || warn "Hyprland config reported problems"
+fi
 
 cat <<EOF
 
 $(printf '\033[1;32m✔ Done.\033[0m')
   • Backups of replaced files: $BACKUP (only created if something differed)
-  • Reboot (or log out), and greetd's DMS greeter will start Niri.
+  • Reboot (or log out), and greetd's DMS greeter will let you choose Niri or Hyprland.
   • Not included on purpose (set up manually): logins for Brave/gh/Codex/OpenCode, the WeChat AppImage
     (~/.local/share/appimages/WeChatLinux_x86_64.AppImage), Obsidian vault, wallpapers.
   • Keybindings overlay: Super+Shift+/  ·  full reference: Obsidian Vault/keybindings.md

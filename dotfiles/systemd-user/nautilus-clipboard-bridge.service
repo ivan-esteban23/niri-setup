@@ -10,4 +10,4 @@ Restart=on-failure
 RestartSec=2
 
 [Install]
-WantedBy=default.target niri.service
+WantedBy=default.target niri.service hyprland-session.target

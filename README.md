@@ -1,6 +1,6 @@
 # niri-setup
 
-Reproducible install of this Arch Linux **Niri + Dux Shell (DMS)** desktop.
+Reproducible install of this Arch Linux **Niri + Hyprland + Dux Shell (DMS)** desktop.
 
 ```bash
 ./install.sh --dry-run --no-aur        # preview
