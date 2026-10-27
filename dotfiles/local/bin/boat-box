@@ -15,6 +15,9 @@ Usage:
   boat-box status                      Show status of all sandboxes
   boat-box start <ref|portrait>        Start / Resume a sandbox
   boat-box stop <ref|portrait>         Stop sandbox to pause billing
+  boat-box build <ref|portrait>        Run 'npm run build' in project dir
+  boat-box test <ref|portrait>         Run 'npm test' in project dir
+  boat-box pr <ref|portrait> [args..]  Run 'gh pr' (list, view, diff, create, merge)
   boat-box exec <ref|portrait> <cmd..> Run command in project dir (or use --home for ~)
   boat-box ssh <ref|portrait> [cmd..]  Open interactive SSH or run remote command
   boat-box prompt <ref|portrait> <txt> Send prompt to coding agent in sandbox
@@ -64,6 +67,49 @@ case "$CMD" in
     info)
         ID="$(resolve_id "${1:-}")"
         boat info "$ID"
+        ;;
+    build)
+        RAW_TARGET="${1:-}"
+        ID="$(resolve_id "$RAW_TARGET")"
+        DEFAULT_DIR="$(resolve_dir "$RAW_TARGET")"
+        shift || true
+        echo "Building $RAW_TARGET ($ID)..."
+        if [ -n "$DEFAULT_DIR" ]; then
+            boat exec "$ID" --cwd "$DEFAULT_DIR" npm run build "$@"
+        else
+            boat exec "$ID" npm run build "$@"
+        fi
+        ;;
+    test)
+        RAW_TARGET="${1:-}"
+        ID="$(resolve_id "$RAW_TARGET")"
+        DEFAULT_DIR="$(resolve_dir "$RAW_TARGET")"
+        shift || true
+        echo "Running tests in $RAW_TARGET ($ID)..."
+        if [ -n "$DEFAULT_DIR" ]; then
+            boat exec "$ID" --cwd "$DEFAULT_DIR" npm test "$@"
+        else
+            boat exec "$ID" npm test "$@"
+        fi
+        ;;
+    pr)
+        RAW_TARGET="${1:-}"
+        ID="$(resolve_id "$RAW_TARGET")"
+        DEFAULT_DIR="$(resolve_dir "$RAW_TARGET")"
+        shift || true
+        if [ $# -eq 0 ]; then
+            if [ -n "$DEFAULT_DIR" ]; then
+                boat exec "$ID" --cwd "$DEFAULT_DIR" gh pr list
+            else
+                boat exec "$ID" gh pr list
+            fi
+        else
+            if [ -n "$DEFAULT_DIR" ]; then
+                boat exec "$ID" --cwd "$DEFAULT_DIR" gh pr "$@"
+            else
+                boat exec "$ID" gh pr "$@"
+            fi
+        fi
         ;;
     exec)
         RAW_TARGET="${1:-}"
