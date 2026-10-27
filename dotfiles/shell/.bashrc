@@ -23,8 +23,14 @@ PS1='[\u@\h \W]\$ '
 # Added by Antigravity CLI installer
 export PATH="__HOME__/.local/bin:$HOME/.opencode/bin:$PATH"
 
-# Agentic mode: agy runs with full auto-approve permissions
+# Agentic mode: agy & qoder run with full auto-approve permissions
 alias agy='agy --dangerously-skip-permissions'
+alias qoder='qodercli --dangerously-skip-permissions'
+alias qodercli='qodercli --dangerously-skip-permissions'
+
+# Qoder Model Shortcuts
+alias qoder-qwen='qodercli -m Qwen3.8-Flash --reasoning-effort xhigh --dangerously-skip-permissions'
+alias qoder-deepseek='qodercli -m DeepSeek-Flash --reasoning-effort high --dangerously-skip-permissions'
 
 # Tavily API Key
 export TAVILY_API_KEY="__TAVILY_API_KEY__"
