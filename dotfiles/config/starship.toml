@@ -1,0 +1,40 @@
+# ~/.config/starship.toml
+# Fast, clean, modern prompt for Zsh
+
+add_newline = false
+
+format = """
+$username\
+$hostname\
+$directory\
+$git_branch\
+$git_status\
+$cmd_duration\
+$line_break\
+$character"""
+
+[character]
+success_symbol = "[❯](bold green)"
+error_symbol = "[❯](bold red)"
+
+[directory]
+truncation_length = 4
+truncation_symbol = "…/"
+style = "bold cyan"
+read_only = " 󰌾"
+
+[git_branch]
+symbol = " "
+style = "bold purple"
+format = "[$symbol$branch]($style) "
+
+[git_status]
+style = "bold red"
+format = '([\[$all_status$ahead_behind\]]($style) )'
+
+[cmd_duration]
+min_time = 2_000
+format = "took [$duration](bold yellow) "
+
+[package]
+disabled = true

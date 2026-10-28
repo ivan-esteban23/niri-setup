@@ -122,6 +122,15 @@ for f in .bashrc .bash_profile .profile .zshrc; do
     [ -f "$DOT/shell/$f" ] && install_file "$DOT/shell/$f" "$HOME/$f"
 done
 
+# Zsh plugins (fzf-tab, zsh-autopair, zsh-you-should-use)
+if [ "$DRY" != 1 ]; then
+    say "Setting up Zsh plugins"
+    mkdir -p "$HOME/.zsh/plugins"
+    [ -d "$HOME/.zsh/plugins/fzf-tab" ] || git clone --depth 1 https://github.com/Aloxaf/fzf-tab "$HOME/.zsh/plugins/fzf-tab" 2>/dev/null || true
+    [ -d "$HOME/.zsh/plugins/zsh-autopair" ] || git clone --depth 1 https://github.com/hlissner/zsh-autopair "$HOME/.zsh/plugins/zsh-autopair" 2>/dev/null || true
+    [ -d "$HOME/.zsh/plugins/zsh-you-should-use" ] || git clone --depth 1 https://github.com/MichaelAquilina/zsh-you-should-use "$HOME/.zsh/plugins/zsh-you-should-use" 2>/dev/null || true
+fi
+
 [ -f "$DOT/AGENTS.md" ] && install_file "$DOT/AGENTS.md" "$HOME/AGENTS.md"
 [ -f "$DOT/codex/config.toml" ] && install_file "$DOT/codex/config.toml" "$HOME/.codex/config.toml" 600
 

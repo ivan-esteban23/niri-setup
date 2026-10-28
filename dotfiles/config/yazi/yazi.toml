@@ -19,3 +19,23 @@ max_height    = 1600
 image_delay   = 15
 image_filter  = "lanczos3"
 image_quality = 90
+
+[opener]
+vlc = [
+	{ run = 'vlc %s', orphan = true, desc = "VLC Media Player", for = "linux" },
+]
+qbittorrent = [
+	{ run = 'qbittorrent %s', orphan = true, desc = "qBittorrent", for = "linux" },
+]
+
+[open]
+prepend_rules = [
+	# Media (Audio & Video) -> VLC
+	{ mime = "video/*", use = "vlc" },
+	{ mime = "audio/*", use = "vlc" },
+	{ url = "*.m3u*", use = "vlc" },
+
+	# Torrents -> qBittorrent
+	{ mime = "application/x-bittorrent", use = "qbittorrent" },
+	{ url = "*.torrent", use = "qbittorrent" },
+]

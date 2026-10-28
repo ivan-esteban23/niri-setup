@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -e
+echo "=================================================="
+echo "    Setting up Tailscale on Arch Linux"
+echo "=================================================="
+echo "Step 1: Installing Tailscale..."
+sudo pacman -S --needed tailscale
+echo "Step 2: Starting tailscaled daemon..."
+sudo systemctl enable --now tailscaled
+echo "Step 3: Connecting to Tailscale network..."
+echo "Please sign in with your GitHub account (same as your phone):"
+sudo tailscale up --ssh --operator="$USER"
+echo ""
+echo "=== Tailscale Status ==="
+tailscale status
+echo ""
+echo "Tailscale is now connected! Press Enter to close."
+read -r

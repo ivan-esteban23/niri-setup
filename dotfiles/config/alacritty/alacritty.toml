@@ -3,6 +3,9 @@ import = [
   "~/.config/alacritty/dank-theme.toml"
 ]
 
+[terminal.shell]
+program = "/usr/bin/zsh"
+
 [window]
 decorations = "None"
 padding = { x = 12, y = 12 }

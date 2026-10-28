@@ -1,8 +1,10 @@
 7zip
 accountsservice
+aichat
 alacritty
 base
 base-devel
+bat
 bluetui
 bluez
 bluez-utils
@@ -30,6 +32,7 @@ foot
 foot-terminfo
 fzf
 git
+git-delta
 github-cli
 git-lfs
 go
@@ -46,6 +49,7 @@ intel-ucode
 inter-font
 jq
 kimageformats
+lazygit
 libnautilus-extension-docs
 libnotify
 libpulse
@@ -99,9 +103,12 @@ rqbit-desktop
 rsync
 rtkit
 rust
+starship
 strace
 sudo
+tailscale
 tar
+tgpt
 tmux
 trash-cli
 ttf-atkinson-hyperlegible
@@ -130,4 +137,9 @@ yt-dlp
 zip
 zoxide
 zram-generator
+zsh
+zsh-autosuggestions
+zsh-completions
+zsh-history-substring-search
+zsh-syntax-highlighting
 zstd

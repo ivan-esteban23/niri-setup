@@ -42,7 +42,7 @@ mkdir -p "$DOT/config/dms"
     "$HOME/.config/dms/" "$DOT/config/dms/"
 
 # Loose files in ~/.config
-for f in xdg-terminals.list mimeapps.list brave-origin-flags.conf QtProject.conf user-dirs.dirs; do
+for f in xdg-terminals.list mimeapps.list brave-origin-flags.conf QtProject.conf user-dirs.dirs starship.toml; do
     [ -f "$HOME/.config/$f" ] && cp -f "$HOME/.config/$f" "$DOT/config/$f"
 done
 
