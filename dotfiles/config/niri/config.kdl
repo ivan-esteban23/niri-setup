@@ -274,6 +274,11 @@ binds {
         spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_webappManager";
     }
 
+    // === DNS Switcher (Google / Cloudflare / Quad9 / MagicDNS / ISP) ===
+    Mod+Alt+D hotkey-overlay-title="DNS Switcher: Choose Provider" {
+        spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_dnsSwitcher";
+    }
+
     Mod+Alt+W hotkey-overlay-title="WeChat" {
         spawn "__HOME__/.local/share/appimages/WeChatLinux_x86_64.AppImage";
     }

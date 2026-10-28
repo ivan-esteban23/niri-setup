@@ -195,7 +195,7 @@ PluginComponent {
             id: providerCell
             required property var modelData
 
-            width: parent.width
+            width: parent ? parent.width : 0
             height: root.latencyText(modelData.id) === "" ? 58 : 76
             radius: Theme.cornerRadius
             color: Theme.surfaceContainerHigh
@@ -213,11 +213,12 @@ PluginComponent {
                 }
 
                 Column {
-                    width: parent.width - 96
+                    id: cellColumn
+                    width: providerCell.width - 120
                     spacing: 2
 
                     StyledText {
-                        width: parent.width
+                        width: cellColumn.width
                         text: modelData.label
                         color: Theme.surfaceText
                         font.pixelSize: Theme.fontSizeMedium
@@ -226,7 +227,7 @@ PluginComponent {
                     }
 
                     StyledText {
-                        width: parent.width
+                        width: cellColumn.width
                         text: root.serversText(modelData)
                         color: Theme.surfaceVariantText
                         font.pixelSize: Theme.fontSizeSmall - 2
@@ -234,7 +235,7 @@ PluginComponent {
                     }
 
                     StyledText {
-                        width: parent.width
+                        width: cellColumn.width
                         visible: root.latencyText(modelData.id) !== ""
                         text: root.latencyText(modelData.id)
                         color: Theme.primary

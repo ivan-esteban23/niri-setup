@@ -45,6 +45,7 @@
         "memUsage",
         "notificationButton",
         "battery",
+        "dnsSwitcher",
         {
           "id": "controlCenterButton",
           "enabled": true,
@@ -103,7 +104,7 @@
     }
   ],
   "configVersion": 42,
-  "radiusStrength": 38,
+  "radiusStrength": 50,
   "dockConfigs": [
     {
       "id": "dock",
