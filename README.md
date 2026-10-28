@@ -33,6 +33,7 @@ Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl
 | `Mod + Shift + A` | Capture a region and copy its `@path` for an AI agent | `agent-snip` |
 | `Mod + Shift + Space` | Voice dictation (local whisper.cpp) into the focused prompt | `voice-dictate` |
 | `Mod + Shift + Return` | AI scratchpad — floating Alacritty running the agent CLI | `alacritty` |
+| `Mod + Alt + Return` | Plain scratchpad — floating Alacritty, your shell, no agent CLI | `alacritty` |
 | `Mod + B` | Floating drag-and-drop clipboard shelf | `toggle-drag-shelf` |
 | `Mod + V` | Clipboard history modal (text / images / files) | DMS clipboard service · `clipboardHistoryPlus` tile |
 | `Mod + Shift + D` | Do Not Disturb, with an on-screen toast | `toggle-dnd` |
@@ -54,3 +55,15 @@ Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl
 - glibc reads only the first **3** nameservers, so the panel flags the 4th as ignored.
 - Joining a new Wi-Fi network gives that profile no override, so the resolver and the profiles disagree → the card turns amber; press **Re-apply**.
 - Terminal: `dns-switch status | current | providers | apply <provider> | cycle | test` (state in `~/.cache/dns-switch/state.json`).
+
+### Synthetic input (ydotool)
+
+`ydotool` drives `/dev/uinput` to press real keys (used to verify bindings end-to-end — `wtype` cannot hold modifiers on this compositor). Three pieces, all unprivileged:
+
+- `dotfiles/etc/udev/rules.d/72-uinput-uaccess.rules` — `TAG+="uaccess"` on `/dev/uinput`, so logind ACLs the active seat user in (no `input` group, which would expose every keyboard/mouse device). **Must sort before `73-seat-late.rules`**: that file runs the `uaccess` builtin only for tags already present, so a `99-` rule silently grants nothing.
+- `dotfiles/systemd-user/ydotoold.service` — user service, `--socket-path=%t/ydotool.sock --socket-perm=0600`, `WantedBy=niri.service`.
+- `dotfiles/config/environment.d/50-ydotool.conf` — `YDOTOOL_SOCKET=${XDG_RUNTIME_DIR}/ydotool.sock` for clients (the upstream default `/tmp/.ydotool_socket` is world-writable).
+
+```bash
+ydotool key 125:1 56:1 32:1 32:0 56:0 125:0   # Super_L + Alt_L + D (evdev codes)
+```

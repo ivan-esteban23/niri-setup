@@ -202,6 +202,13 @@ if [ "$DO_SYSTEM" = 1 ]; then
     if [ "$DO_HW" = 1 ] && [ -f "$DOT/etc/zram-generator.conf" ]; then
         run sudo install -m 644 "$DOT/etc/zram-generator.conf" /etc/systemd/zram-generator.conf
     fi
+    if [ -f "$DOT/etc/udev/rules.d/72-uinput-uaccess.rules" ]; then
+        say "udev: uaccess ACL for /dev/uinput (ydotoold)"
+        run sudo install -D -m 644 "$DOT/etc/udev/rules.d/72-uinput-uaccess.rules" \
+            /etc/udev/rules.d/72-uinput-uaccess.rules
+        run sudo udevadm control --reload-rules
+        run sudo udevadm trigger --subsystem-match=misc --sysname-match=uinput --action=change
+    fi
 
     say "Groups (docker, video, render)"
     for g in docker video render; do
@@ -226,7 +233,7 @@ if [ "$DO_SYSTEM" = 1 ]; then
 fi
 
 # ── 5. User services & wiring ─────────────────────────────────────────────────
-say "Wiring user services (DMS + Nautilus bridge)"
+say "Wiring user services (DMS + Nautilus bridge + ydotoold)"
 if [ "$DRY" != 1 ]; then
     mkdir -p "$HOME/.config/systemd/user/niri.service.wants" \
              "$HOME/.config/systemd/user/hyprland-session.target.wants" \
@@ -238,6 +245,10 @@ if [ "$DRY" != 1 ]; then
             ln -sfn "$HOME/.config/systemd/user/nautilus-clipboard-bridge.service" \
                     "$HOME/.config/systemd/user/$w/nautilus-clipboard-bridge.service"
         done
+    fi
+    if [ -f "$HOME/.config/systemd/user/ydotoold.service" ]; then
+        ln -sfn "$HOME/.config/systemd/user/ydotoold.service" \
+                "$HOME/.config/systemd/user/niri.service.wants/ydotoold.service"
     fi
     systemctl --user daemon-reload 2>/dev/null || true
 

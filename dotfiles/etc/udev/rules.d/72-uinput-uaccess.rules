@@ -1,0 +1,6 @@
+# Grant the active seat user rw access to /dev/uinput (ydotoold) via a logind ACL,
+# instead of adding the user to the `input` group (which would expose every input device).
+# static_node=uinput also makes udev create the node at boot (loading the module).
+# Must sort before 73-seat-late.rules: that file runs the uaccess builtin only for tags
+# that already exist at that point, so a 99- rule would silently grant nothing.
+KERNEL=="uinput", SUBSYSTEM=="misc", TAG+="uaccess", OPTIONS+="static_node=uinput"

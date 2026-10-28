@@ -233,7 +233,7 @@ window-rule {
     default-window-height { fixed 540; }
 }
 window-rule {
-    match app-id=r#"^ai-scratchpad$"#
+    match app-id=r#"^(ai-)?scratchpad$"#
     open-floating true
     default-column-width { proportion 0.70; }
     default-window-height { proportion 0.80; }

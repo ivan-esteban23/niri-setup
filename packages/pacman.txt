@@ -136,6 +136,7 @@ xdg-desktop-portal-hyprland
 xfsprogs
 xwayland-satellite
 yazi
+ydotool
 yt-dlp
 zip
 zoxide
