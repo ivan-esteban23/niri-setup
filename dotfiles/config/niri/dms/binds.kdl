@@ -15,6 +15,9 @@ binds {
     Mod+Alt+Return hotkey-overlay-title="Scratchpad Terminal" {
         spawn "alacritty" "--class" "scratchpad,scratchpad";
     }
+    Mod+Ctrl+Return hotkey-overlay-title="Foot Scratchpad" {
+        spawn "foot" "--app-id=scratchpad";
+    }
     Mod+Shift+A hotkey-overlay-title="Capture Snip for AI Agent" {
         spawn "__HOME__/.local/bin/agent-snip";
     }

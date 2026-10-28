@@ -34,6 +34,7 @@ Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl
 | `Mod + Shift + Space` | Voice dictation (local whisper.cpp) into the focused prompt | `voice-dictate` |
 | `Mod + Shift + Return` | AI scratchpad — floating Alacritty running the agent CLI | `alacritty` |
 | `Mod + Alt + Return` | Plain scratchpad — floating Alacritty, your shell, no agent CLI | `alacritty` |
+| `Mod + Ctrl + Return` | foot scratchpad — floating `foot`, no AI CLI at all | `foot` |
 | `Mod + B` | Floating drag-and-drop clipboard shelf | `toggle-drag-shelf` |
 | `Mod + V` | Clipboard history modal (text / images / files) | DMS clipboard service · `clipboardHistoryPlus` tile |
 | `Mod + Shift + D` | Do Not Disturb, with an on-screen toast | `toggle-dnd` |
