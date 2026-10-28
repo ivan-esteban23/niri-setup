@@ -238,6 +238,70 @@ extract() {
 }
 alias x='extract'
 
+# gwt: Parallel Agent Git Worktrees
+gwt() {
+  local subcmd="${1:-}"
+  if [ -z "$subcmd" ]; then
+    echo "Usage: gwt <command> [args]"
+    echo "Commands:"
+    echo "  new <branch>     Create a worktree in ../worktrees/<repo>-<branch>"
+    echo "  agy <branch>     Create a worktree and immediately launch agy in it"
+    echo "  cd               Fuzzy-select a worktree and cd into it"
+    echo "  ls               List active worktrees"
+    echo "  rm <branch>      Remove a worktree safely"
+    return 1
+  fi
+
+  local git_root
+  git_root=$(git rev-parse --show-toplevel 2>/dev/null)
+  if [ -z "$git_root" ]; then
+    echo "Error: Not inside a git repository."
+    return 1
+  fi
+  local repo_name=$(basename "$git_root")
+  local worktree_base="$(dirname "$git_root")/worktrees"
+
+  case "$subcmd" in
+    ls|list)
+      git worktree list
+      ;;
+    new)
+      local branch="$2"
+      if [ -z "$branch" ]; then echo "Usage: gwt new <branch>"; return 1; fi
+      mkdir -p "$worktree_base"
+      local dest="$worktree_base/${repo_name}-${branch}"
+      git worktree add -b "$branch" "$dest" || git worktree add "$dest" "$branch"
+      echo "Worktree created at: $dest"
+      cd "$dest"
+      ;;
+    agy)
+      local branch="$2"
+      if [ -z "$branch" ]; then echo "Usage: gwt agy <branch>"; return 1; fi
+      mkdir -p "$worktree_base"
+      local dest="$worktree_base/${repo_name}-${branch}"
+      git worktree add -b "$branch" "$dest" 2>/dev/null || git worktree add "$dest" "$branch" 2>/dev/null || true
+      echo "Launching Antigravity agent in worktree: $dest"
+      (cd "$dest" && agy)
+      ;;
+    cd)
+      local selected
+      selected=$(git worktree list | fzf --prompt="Select worktree > " | awk '{print $1}')
+      if [ -n "$selected" ]; then
+        cd "$selected"
+      fi
+      ;;
+    rm)
+      local target="$2"
+      if [ -z "$target" ]; then echo "Usage: gwt rm <branch_or_path>"; return 1; fi
+      git worktree remove "$target"
+      ;;
+    *)
+      echo "Unknown gwt command: $subcmd"
+      return 1
+      ;;
+  esac
+}
+
 # ---------------------------------------------------------
 # 9. AI Workflows & Cloud Sandboxes
 # ---------------------------------------------------------
@@ -350,7 +414,46 @@ if [ -f /usr/share/zsh/plugins/zsh-syntax-highlighting/zsh-syntax-highlighting.z
 fi
 
 # ---------------------------------------------------------
-# 12. Starship Prompt
+# 12. Long-Running Command Notification Toast (>15s)
+# ---------------------------------------------------------
+_notify_preexec() {
+  _CMD_START_TIME=$SECONDS
+  _LAST_CMD="$1"
+}
+
+_notify_precmd() {
+  local exit_code=$?
+  if [ -n "$_CMD_START_TIME" ]; then
+    local elapsed=$(( SECONDS - _CMD_START_TIME ))
+    unset _CMD_START_TIME
+
+    if [ $elapsed -ge 15 ]; then
+      case "$_LAST_CMD" in
+        nvim*|vim*|nano*|man*|less*|yazi*|lazygit*|lg*|top*|htop*|btop*|cava*)
+          return
+          ;;
+      esac
+
+      local cmd_short="${_LAST_CMD:0:50}"
+      if [ $exit_code -eq 0 ]; then
+        notify-send -u normal -a "Zsh" -i terminal \
+          "✔ Task Completed (${elapsed}s)" \
+          "$cmd_short" 2>/dev/null || true
+      else
+        notify-send -u critical -a "Zsh" -i error \
+          "✘ Task Failed (exit $exit_code in ${elapsed}s)" \
+          "$cmd_short" 2>/dev/null || true
+      fi
+    fi
+  fi
+}
+
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _notify_preexec
+add-zsh-hook precmd _notify_precmd
+
+# ---------------------------------------------------------
+# 13. Starship Prompt
 # ---------------------------------------------------------
 if command -v starship &>/dev/null; then
   eval "$(starship init zsh)"

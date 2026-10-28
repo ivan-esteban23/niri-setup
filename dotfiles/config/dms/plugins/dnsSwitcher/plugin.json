@@ -1,0 +1,15 @@
+{
+    "id": "dnsSwitcher",
+    "name": "DNS Switcher",
+    "description": "Switch DNS between Google, Cloudflare, Quad9, Tailscale MagicDNS and ISP-provided servers (IPv4 + IPv6) without a password — Control Center tile, bar pill and Mod+Alt+D panel",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": ["dankbar-widget", "control-center", "network"],
+    "component": "./DnsSwitcherWidget.qml",
+    "icon": "dns",
+    "permissions": [
+        "process",
+        "settings_read"
+    ]
+}

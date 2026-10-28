@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# ~/.local/bin/voice-dictate — Toggle voice recording & transcribe with local Whisper
+set -euo pipefail
+
+PID_FILE="/tmp/voice_dictate.pid"
+AUDIO_FILE="/tmp/voice_dictate.wav"
+MODEL="$HOME/.local/share/whisper-models/ggml-base.bin"
+
+if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null; then
+    # Stop recording
+    PID="$(cat "$PID_FILE")"
+    kill -SIGINT "$PID" 2>/dev/null || true
+    rm -f "$PID_FILE"
+    
+    notify-send -u low -a "Voice Dictate" -i audio-input-microphone \
+        "⏳ Transcribing Voice..." "Processing audio with Whisper..."
+    
+    # Wait for ffmpeg to flush and close
+    sleep 0.3
+    
+    if [ -f "$AUDIO_FILE" ]; then
+        TEXT="$(whisper-cli -m "$MODEL" -l auto -nt -np -f "$AUDIO_FILE" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' || true)"
+        
+        if [ -n "$TEXT" ]; then
+            # Copy to clipboard
+            printf "%s" "$TEXT" | wl-copy
+            # Type into the focused Wayland window
+            wtype "$TEXT" 2>/dev/null || true
+            notify-send -u normal -a "Voice Dictate" -i audio-input-microphone \
+                "🎙️ Transcribed & Inserted" "$TEXT"
+        else
+            notify-send -u low -a "Voice Dictate" -i dialog-warning \
+                "Voice Dictate" "No speech recognized."
+        fi
+        rm -f "$AUDIO_FILE"
+    fi
+else
+    # Start recording
+    rm -f "$AUDIO_FILE"
+    ffmpeg -y -f pulse -i default -ar 16000 -ac 1 -c:a pcm_s16le "$AUDIO_FILE" >/dev/null 2>&1 &
+    echo $! > "$PID_FILE"
+    notify-send -u normal -a "Voice Dictate" -i audio-input-microphone \
+        "🎙️ Recording Voice Prompt..." "Speak your prompt. Press Mod+Shift+Space again to transcribe."
+fi

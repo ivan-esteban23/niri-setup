@@ -9,6 +9,15 @@ binds {
     // === Application Launchers ===
     Mod+T hotkey-overlay-title="Open Terminal" { spawn "alacritty"; }
     Mod+Return hotkey-overlay-title="Open Terminal" { spawn "alacritty"; }
+    Mod+Shift+Return hotkey-overlay-title="AI Agent Scratchpad" {
+        spawn "alacritty" "--class" "ai-scratchpad,ai-scratchpad" "-e" "zsh" "-c" "agy || zsh";
+    }
+    Mod+Shift+A hotkey-overlay-title="Capture Snip for AI Agent" {
+        spawn "__HOME__/.local/bin/agent-snip";
+    }
+    Mod+Shift+Space hotkey-overlay-title="Voice Dictate to Prompt" {
+        spawn "__HOME__/.local/bin/voice-dictate";
+    }
     Mod+Space hotkey-overlay-title="Application Launcher" {
         spawn "dms" "ipc" "call" "spotlight" "toggle";
     }

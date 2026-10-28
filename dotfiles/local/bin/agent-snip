@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# ~/.local/bin/agent-snip — Capture screen area and copy @path directly to clipboard for AI agents
+set -euo pipefail
+
+SNIPS_DIR="$HOME/.cache/agent-snips"
+mkdir -p "$SNIPS_DIR"
+
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+TARGET_FILE="$SNIPS_DIR/snip_${TIMESTAMP}.png"
+
+# Slurp region selection with Niri/DMS accent colors
+GEOMETRY="$(slurp -d -b "#14121888" -c "#d0bcff" -w 2 2>/dev/null || exit 0)"
+
+if [ -z "$GEOMETRY" ]; then
+    # User canceled selection (pressed Esc or clicked away)
+    exit 0
+fi
+
+# Capture region
+grim -g "$GEOMETRY" "$TARGET_FILE"
+
+if [ -f "$TARGET_FILE" ]; then
+    # Format path for Antigravity / Qoder / terminal agents
+    ATTACH_REF="@$TARGET_FILE"
+    printf "%s" "$ATTACH_REF" | wl-copy
+    
+    # Send desktop notification with the screenshot preview
+    notify-send -u normal -a "Agent Snip" -i "$TARGET_FILE" \
+        "📸 Snip Ready for AI Agent" \
+        "Copied to clipboard:\n$ATTACH_REF"
+fi

@@ -37,6 +37,7 @@ github-cli
 git-lfs
 go
 greetd
+grim
 gst-libav
 gst-plugin-pipewire
 gst-plugins-bad
@@ -103,6 +104,7 @@ rqbit-desktop
 rsync
 rtkit
 rust
+slurp
 starship
 strace
 sudo
@@ -124,6 +126,7 @@ viu
 vlc
 vlc-plugins-all
 wget
+whisper-cpp
 wireplumber
 wl-clipboard
 wpa_supplicant

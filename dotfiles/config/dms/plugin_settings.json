@@ -19,5 +19,8 @@
   },
   "samsungBattery": {
     "enabled": true
+  },
+  "dnsSwitcher": {
+    "enabled": true
   }
 }
