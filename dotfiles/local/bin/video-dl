@@ -152,7 +152,6 @@ def run_download(url: str, resolution: str = "1080p", codec: str = "h264", backg
     format_spec = build_yt_dlp_format(resolution, codec)
 
     set_state("downloading", f"Starting download in {resolution} ({codec})…", url, resolution, codec)
-    notify("Video Downloader", f"Starting download: {resolution} · {codec.upper()}\n{url}", urgency="low")
 
     output_template = str(dest_dir / "%(title)s [%(resolution)s].%(ext)s")
 
@@ -169,12 +168,24 @@ def run_download(url: str, resolution: str = "1080p", codec: str = "h264", backg
     ]
 
     if background:
-        # Fork and detach
+        # Run this program's foreground worker so completion and failures update
+        # the same state and history used by the panel after the caller exits.
         log_file = CACHE_DIR / "download.log"
-        with open(log_file, "w", encoding="utf-8") as log_fp:
-            proc = subprocess.Popen(cmd, stdout=log_fp, stderr=subprocess.STDOUT)
+        try:
+            with open(log_file, "w", encoding="utf-8") as log_fp:
+                proc = subprocess.Popen(
+                    [sys.executable, str(Path(__file__).resolve()), "download", url, resolution, codec],
+                    stdin=subprocess.DEVNULL, stdout=log_fp, stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+        except OSError as exc:
+            set_state("error", str(exc), url, resolution, codec)
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
         print(json.dumps({"status": "started", "pid": proc.pid, "url": url, "resolution": resolution, "codec": codec}))
         return 0
+
+    notify("Video Downloader", f"Starting download: {resolution} · {codec.upper()}\n{url}", urgency="low")
 
     try:
         proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
