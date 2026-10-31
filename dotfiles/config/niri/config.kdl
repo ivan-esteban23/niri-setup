@@ -284,6 +284,11 @@ binds {
         spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_videoDownloader";
     }
 
+    // === Reminders ===
+    Mod+Alt+M hotkey-overlay-title="Reminders" {
+        spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_reminders";
+    }
+
     Mod+Alt+W hotkey-overlay-title="WeChat" {
         spawn "__HOME__/.local/share/appimages/WeChatLinux_x86_64.AppImage";
     }
