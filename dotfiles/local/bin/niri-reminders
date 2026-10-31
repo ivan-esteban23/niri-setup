@@ -1,0 +1,116 @@
+#!/usr/bin/env python3
+"""Persistent local reminders for the DMS Reminders widget."""
+import argparse
+import datetime as dt
+import html
+import json
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+import sys
+import time
+import uuid
+
+DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "niri-reminders"
+DB_PATH = DATA_DIR / "reminders.sqlite3"
+
+
+def connect():
+    DATA_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+    db = sqlite3.connect(DB_PATH, timeout=10)
+    DB_PATH.chmod(0o600)
+    db.row_factory = sqlite3.Row
+    db.execute("CREATE TABLE IF NOT EXISTS reminders (id TEXT PRIMARY KEY, title TEXT NOT NULL, due INTEGER NOT NULL, notified INTEGER NOT NULL DEFAULT 0, completed INTEGER NOT NULL DEFAULT 0)")
+    return db
+
+
+def due_time(value):
+    try:
+        local = dt.datetime.strptime(value, "%Y-%m-%d %H:%M")
+        timestamp = local.timestamp()
+        if dt.datetime.fromtimestamp(timestamp).replace(second=0, microsecond=0) != local:
+            raise ValueError("That local time does not exist (daylight-saving change).")
+        if timestamp <= time.time():
+            raise ValueError("Choose a future time.")
+        return int(timestamp)
+    except (ValueError, OverflowError, OSError) as exc:
+        raise argparse.ArgumentTypeError(f"Invalid date/time: {exc}") from exc
+
+
+def minutes(value):
+    try:
+        result = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("Minutes must be a whole number.") from exc
+    if not 1 <= result <= 525600:
+        raise argparse.ArgumentTypeError("Choose between 1 and 525600 minutes.")
+    return result
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    add = commands.add_parser("add")
+    add.add_argument("title")
+    when = add.add_mutually_exclusive_group(required=True)
+    when.add_argument("--in", dest="in_minutes", type=minutes)
+    when.add_argument("--at", type=due_time, metavar="YYYY-MM-DD HH:MM")
+    commands.add_parser("list")
+    for action in ("done", "delete", "snooze"):
+        sub = commands.add_parser(action)
+        sub.add_argument("id")
+        if action == "snooze":
+            sub.add_argument("minutes", type=minutes)
+    commands.add_parser("tick")
+    args = parser.parse_args(argv)
+    try:
+        with connect() as db:
+            if args.command == "add":
+                title = args.title.strip()
+                if not title or len(title) > 160 or any(ord(c) < 32 for c in title):
+                    raise ValueError("Enter a reminder of 1–160 characters on one line.")
+                due = args.at if args.at is not None else int(time.time() + args.in_minutes * 60)
+                ident = uuid.uuid4().hex
+                db.execute("INSERT INTO reminders (id,title,due) VALUES (?,?,?)", (ident, title, due))
+                result = {"ok": True, "id": ident}
+            elif args.command == "list":
+                rows = db.execute("SELECT id,title,due,notified FROM reminders WHERE completed=0 ORDER BY due,id").fetchall()
+                result = {"reminders": [dict(row) for row in rows], "now": int(time.time())}
+            elif args.command in ("done", "delete", "snooze"):
+                if args.command == "delete":
+                    cur = db.execute("DELETE FROM reminders WHERE id=?", (args.id,))
+                elif args.command == "done":
+                    cur = db.execute("UPDATE reminders SET completed=1 WHERE id=? AND completed=0", (args.id,))
+                else:
+                    cur = db.execute("UPDATE reminders SET due=?,notified=0 WHERE id=? AND completed=0", (int(time.time() + args.minutes * 60), args.id))
+                if cur.rowcount != 1:
+                    raise ValueError("Reminder not found.")
+                result = {"ok": True}
+            else:
+                # Serialize overlapping timer invocations to avoid duplicate notifications.
+                db.execute("BEGIN IMMEDIATE")
+                rows = db.execute("SELECT id,title FROM reminders WHERE completed=0 AND notified=0 AND due<=? ORDER BY due,id", (int(time.time()),)).fetchall()
+                delivered, failed = 0, 0
+                for row in rows:
+                    try:
+                        notification = subprocess.run(["notify-send", "-a", "Reminders", "-i", "appointment-soon", "--", "Reminder", html.escape(row["title"], quote=False)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, check=False)
+                        if notification.returncode != 0:
+                            raise RuntimeError("notification service rejected delivery")
+                        db.execute("UPDATE reminders SET notified=1 WHERE id=?", (row["id"],))
+                        delivered += 1
+                    except (OSError, subprocess.TimeoutExpired, RuntimeError):
+                        failed += 1
+                result = {"delivered": delivered, "failed": failed}
+                if failed:
+                    print(json.dumps(result, ensure_ascii=False))
+                    return 1
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    except (OSError, sqlite3.Error, ValueError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
