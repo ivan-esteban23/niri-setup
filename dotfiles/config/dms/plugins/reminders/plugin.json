@@ -1,0 +1,12 @@
+{
+  "id": "reminders",
+  "name": "Reminders",
+  "description": "Plan your next task, see what's due, and get local desktop reminders.",
+  "version": "1.0.0",
+  "author": "ivanaguilera",
+  "type": "widget",
+  "capabilities": ["control-center", "dankbar-widget"],
+  "component": "./RemindersWidget.qml",
+  "icon": "notifications_active",
+  "permissions": ["process", "settings_read"]
+}

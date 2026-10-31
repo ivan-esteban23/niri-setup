@@ -50,6 +50,7 @@ done
 say "systemd user units"
 mkdir -p "$DOT/systemd-user"
 find "$HOME/.config/systemd/user" -maxdepth 1 -type f -name '*.service' -exec cp -f {} "$DOT/systemd-user/" \;
+[ ! -f "$HOME/.config/systemd/user/niri-reminders.timer" ] || cp -f "$HOME/.config/systemd/user/niri-reminders.timer" "$DOT/systemd-user/"
 
 # OpenCode (config sanitized below), AGENTS, skills
 say "OpenCode"

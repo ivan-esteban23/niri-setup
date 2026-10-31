@@ -25,5 +25,8 @@
   },
   "videoDownloader": {
     "enabled": true
+  },
+  "reminders": {
+    "enabled": true
   }
 }

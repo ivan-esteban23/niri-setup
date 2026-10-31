@@ -20,6 +20,25 @@ TAVILY_API_KEY=tvly-xxxx ./install.sh  # full install (key optional)
 - Replaced files are backed up to `~/.config-backup-<timestamp>/`.
 - Not included: browser/gh/Codex/OpenCode logins, WeChat AppImage, Obsidian vault, wallpapers.
 
+## Reminders
+
+The **Reminders** DMS plugin offers quick 5-, 15-, 30- and 60-minute reminders, an optional local date and time (`YYYY-MM-DD HH:MM`), a scrollable list, completion, deletion and a 10-minute snooze. Enable or add the Reminders widget in DMS's plugin/widget settings to use it from the control center or bar. Its accent follows the current DMS theme.
+
+Reminders are stored locally in `${XDG_DATA_HOME:-~/.local/share}/niri-reminders/`. The user timer `niri-reminders.timer` checks once per minute and retries overdue notifications when the notification service is unavailable. The standard installer enables the timer; after installing with `--no-system`, enable it after logging in with `systemctl --user enable --now niri-reminders.timer`. Notifications require an active user session and notification service; the computer does not wake itself or send alerts while powered off. Overdue items are delivered when the timer and notification service are available again. The timing follows the machine's local timezone.
+
+The command also works independently of the panel:
+
+```bash
+niri-reminders add "Take a break" --in 15
+niri-reminders add "Call the studio" --at "2026-12-01 14:30"
+niri-reminders list
+niri-reminders snooze REMINDER_ID 10
+niri-reminders done REMINDER_ID
+niri-reminders delete REMINDER_ID
+```
+
+Run the offline backend checks with `python3 -m unittest discover -s tests -v`.
+
 ## Custom keybindings
 
 Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl`, backed by helper scripts in `dotfiles/local/bin/` and Dux Shell plugins in `dotfiles/config/dms/plugins/`. All of it is rootless.

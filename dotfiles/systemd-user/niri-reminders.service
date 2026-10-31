@@ -1,0 +1,6 @@
+[Unit]
+Description=Deliver due Niri reminders
+
+[Service]
+Type=oneshot
+ExecStart="%h/.local/bin/niri-reminders" tick

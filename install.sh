@@ -260,6 +260,10 @@ if [ "$DRY" != 1 ]; then
                 "$HOME/.config/systemd/user/niri.service.wants/ydotoold.service"
     fi
     systemctl --user daemon-reload 2>/dev/null || true
+    if [ "$DO_SYSTEM" = 1 ] && [ -f "$HOME/.config/systemd/user/niri-reminders.timer" ]; then
+        systemctl --user enable --now niri-reminders.timer || \
+            warn "Could not start the reminder timer; run systemctl --user enable --now niri-reminders.timer after logging in."
+    fi
 
     # Make sure our scripts are executable and Nautilus picks up the python extensions
     chmod +x "$HOME"/.local/bin/* 2>/dev/null || true
