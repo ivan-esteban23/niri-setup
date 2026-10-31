@@ -151,19 +151,14 @@ if [ "$DRY" != 1 ]; then
         for f in "${RCS[@]}" "$OC"; do
             [ -f "$f" ] && sed -i "s#__TAVILY_API_KEY__#$TAVILY_API_KEY#g" "$f"
         done
-        # Antigravity MCP
-        mkdir -p "$HOME/.gemini/config"
-        cat > "$HOME/.gemini/config/mcp_config.json" <<EOF
-{
-  "mcpServers": {
-    "tavily": {
-      "command": "npx",
-      "args": ["-y", "tavily-mcp"],
-      "env": { "TAVILY_API_KEY": "$TAVILY_API_KEY" }
-    }
-  }
-}
-EOF
+        # Preserve other Antigravity MCP servers; do not overwrite invalid JSON.
+        MCP_CONFIG="$HOME/.gemini/config/mcp_config.json"
+        if [ -f "$MCP_CONFIG" ]; then
+            mkdir -p "$BACKUP/.gemini/config"
+            cp -a "$MCP_CONFIG" "$BACKUP/.gemini/config/mcp_config.json"
+        fi
+        python3 "$BUNDLE/scripts/merge-tavily-mcp.py" "$MCP_CONFIG" || \
+            warn "Tavily MCP configuration was not changed. Check the existing file and try again."
         chmod 600 "$HOME/.gemini/config/mcp_config.json" "$OC" 2>/dev/null || true
     else
         warn "TAVILY_API_KEY not set — removing Tavily placeholders (re-run with TAVILY_API_KEY=tvly-... to add)."

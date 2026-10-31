@@ -3,5 +3,5 @@
 if pgrep -f "__HOME__/.local/bin/clipboard-drag-shelf" >/dev/null 2>&1; then
     pkill -f "__HOME__/.local/bin/clipboard-drag-shelf"
 else
-    exec __HOME__/.local/bin/clipboard-drag-shelf "$@"
+    exec "__HOME__/.local/bin/clipboard-drag-shelf" "$@"
 fi

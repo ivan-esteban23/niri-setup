@@ -17,7 +17,8 @@ TAVILY_API_KEY=tvly-xxxx ./install.sh  # full install (key optional)
 | `--dry-run`, `-y` | preview / no prompt |
 
 - `dotfiles/` is sanitized: `$HOME` → `__HOME__`, API keys → `__TAVILY_API_KEY__`; runtime credentials are excluded.
-- Replaced files are backed up to `~/.config-backup-<timestamp>/`.
+- Replaced files are backed up to `~/.config-backup-<timestamp>/`. Re-running the installer replaces bundled configuration files, including DMS settings; review your backup to restore any local customizations.
+- When a Tavily key is supplied, the installer preserves other Gemini MCP servers and backs up the previous MCP configuration. Invalid existing MCP JSON is left unchanged with a warning.
 - Not included: browser/gh/Codex/OpenCode logins, WeChat AppImage, Obsidian vault, wallpapers.
 
 ## Reminders
