@@ -1,0 +1,12 @@
+{
+  "id": "themeSwitcher",
+  "name": "Theme Switcher",
+  "description": "Switch between curated dark and softly colored light palettes.",
+  "version": "1.0.0",
+  "author": "ivanaguilera",
+  "type": "widget",
+  "capabilities": ["control-center", "dankbar-widget"],
+  "component": "./ThemeSwitcher.qml",
+  "icon": "palette",
+  "permissions": ["settings_read", "settings_write"]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Gruvbox Light",
+  "primary": "#9d0006",
+  "primaryText": "#fbf1c7",
+  "secondary": "#076678",
+  "surface": "#fbf1c7",
+  "surfaceText": "#3c3836",
+  "surfaceVariant": "#d5c4a1",
+  "surfaceVariantText": "#3c3836",
+  "surfaceTint": "#9d0006",
+  "background": "#fbf1c7",
+  "backgroundText": "#3c3836",
+  "outline": "#504945",
+  "surfaceContainerLowest": "#ebdbb2",
+  "surfaceContainerLow": "#fbf1c7",
+  "surfaceContainer": "#f2e5bc",
+  "surfaceContainerHigh": "#f2e5bc",
+  "surfaceContainerHighest": "#d5c4a1",
+  "error": "#9d0006"
+}

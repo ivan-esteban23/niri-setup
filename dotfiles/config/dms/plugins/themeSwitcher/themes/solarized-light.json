@@ -1,0 +1,20 @@
+{
+  "name": "Solarized Light",
+  "primary": "#005a80",
+  "primaryText": "#fdf6e3",
+  "secondary": "#6c71c4",
+  "surface": "#eee8d5",
+  "surfaceText": "#073642",
+  "surfaceVariant": "#ddd6c1",
+  "surfaceVariantText": "#073642",
+  "surfaceTint": "#005a80",
+  "background": "#eee8d5",
+  "backgroundText": "#073642",
+  "outline": "#586e75",
+  "surfaceContainerLowest": "#e4ddc8",
+  "surfaceContainerLow": "#eee8d5",
+  "surfaceContainer": "#fdf6e3",
+  "surfaceContainerHigh": "#fdf6e3",
+  "surfaceContainerHighest": "#ddd6c1",
+  "error": "#9b1c18"
+}
