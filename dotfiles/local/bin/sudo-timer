@@ -133,10 +133,7 @@ cmd_expire() {
 }
 
 kill_monitor() {
-    # Match only the detached monitor's bash -c (its cmdline embeds the state
-    # file path followed by the refresh command). The caller's own argv —
-    # "$SCRIPT expire" / "$SCRIPT stop" — contains neither, so no self-kill.
-    pkill -f --regexp "$STATE_FILE.*sudo -n -v" 2>/dev/null || true
+    pkill -f "$STATE_FILE.*sudo -n -v" 2>/dev/null || true
 }
 
 # --- stop ----------------------------------------------------------------------

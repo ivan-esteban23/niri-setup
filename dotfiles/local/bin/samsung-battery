@@ -2,7 +2,6 @@
 """
 samsung-battery — Battery monitor backend for Samsung Galaxy A55 5G & Galaxy Watch 7
 Supports:
-  - KDE Connect (kdeconnect-cli / DBus)
   - BlueZ / UPower
   - Local state cache / HTTP push (~/.cache/samsung-battery/state.json)
   - Demo mode for testing widget UI
@@ -53,64 +52,6 @@ def get_demo_state():
         "demo": True,
         "updated_at": int(time.time())
     }
-
-def query_kdeconnect():
-    """Query kdeconnect-cli for connected devices and their batteries."""
-    if not shutil.which("kdeconnect-cli"):
-        return {}
-
-    found = {}
-    try:
-        # List paired & reachable devices
-        out = subprocess.check_output(
-            ["kdeconnect-cli", "-a", "--id-name-only"],
-            text=True, stderr=subprocess.DEVNULL, timeout=3
-        ).strip()
-    except Exception:
-        return {}
-
-    for line in out.splitlines():
-        parts = line.strip().split(maxsplit=1)
-        if len(parts) < 2:
-            continue
-        dev_id, dev_name = parts[0], parts[1]
-        
-        # Check battery
-        try:
-            bat_out = subprocess.check_output(
-                ["kdeconnect-cli", "-d", dev_id, "--battery"],
-                text=True, stderr=subprocess.DEVNULL, timeout=2
-            ).strip()
-        except Exception:
-            continue
-
-        # e.g.: "Battery: 85% (Charging)" or "Battery: 85%"
-        if "Battery:" in bat_out:
-            level = -1
-            charging = "charging" in bat_out.lower()
-            try:
-                digits = "".join([c for c in bat_out.split("%")[0] if c.isdigit()])
-                if digits:
-                    level = int(digits)
-            except Exception:
-                pass
-
-            lower_name = dev_name.lower()
-            if any(k in lower_name for k in ["watch", "gear", "wear", "gw7", "watch7"]):
-                role = "watch"
-            else:
-                role = "phone"
-
-            found[role] = {
-                "name": dev_name,
-                "connected": True,
-                "level": level,
-                "charging": charging,
-                "source": "kdeconnect",
-                "device_id": dev_id
-            }
-
-    return found
 
 def query_upower():
     """Query upower for bluetooth batteries."""
@@ -192,7 +133,6 @@ def get_current_state():
     # Live discovery
     live = {}
     live.update(query_upower())
-    live.update(query_kdeconnect())
 
     phone = live.get("phone") or cached.get("phone") or {
         "name": "Samsung Galaxy A55 5G",
@@ -321,19 +261,9 @@ def print_pair_guide():
     print("""
 === Pairing Samsung Galaxy A55 5G & Galaxy Watch 7 to Arch Linux ===
 
-Method 1: KDE Connect (Recommended for both Phone and Watch)
-  1. Install KDE Connect on Linux:
-     sudo pacman -S kdeconnect
-  2. Launch the daemon:
-     kdeconnect-indicator &
-  3. On Samsung Galaxy A55 5G:
-     - Install 'KDE Connect' from Google Play Store or F-Droid.
-     - Open the app, ensure phone is on same Wi-Fi, tap your PC to Pair.
-  4. On Galaxy Watch 7 (Wear OS 5):
-     - Open Google Play Store directly on your Watch.
-     - Search and install 'KDE Connect'.
-     - Open KDE Connect on the watch and pair it with your PC!
-  5. Once paired, battery levels will update automatically in this widget!
+Method 1: BlueZ / UPower (Bluetooth)
+  1. Pair your phone or watch via Bluetooth / Blueman / bluetui.
+  2. UPower will automatically detect supported battery levels.
 
 Method 2: Webhook / Tasker / Termux Push
   You can push battery levels anytime using:

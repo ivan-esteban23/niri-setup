@@ -280,6 +280,11 @@ def load_image_to_clipboard(filepath: str) -> bool:
             return False
 
 
+def _preload_clipboard(filepath: str) -> bool:
+    load_image_to_clipboard(filepath)
+    return False  # run once
+
+
 def find_target_terminal() -> tuple[int | None, int | None, str]:
     """Find the most recently focused terminal window (Alacritty, Foot, Kitty, Ghostty).
     Returns (window_id, process_pid, detected_tool)."""
@@ -676,7 +681,7 @@ class DragShelfWindow(Gtk.ApplicationWindow):
             except Exception:
                 pass
             # Pre-load image into clipboard as image/png so it is already ready
-            GLib.idle_add(load_image_to_clipboard, filepath)
+            GLib.idle_add(_preload_clipboard, filepath)
         else:
             subprocess.Popen([HELPER_BIN, "path", filepath], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 

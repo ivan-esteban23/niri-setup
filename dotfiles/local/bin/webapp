@@ -13,9 +13,9 @@ MARKER="managed-by=dux-webapp-plugin"
 mkdir -p "$DIR" "$DESKTOPS" "$ICONS"
 [ -s "$APPS" ] || echo "[]" > "$APPS"
 
-notify() {
+notify() { # $1 urgency, $2 title, $3 body, $4 slug
     command -v notify-send >/dev/null 2>&1 && \
-        notify-send -u "$1" -a "WebApp Manager" -i "$ICONS/webapp-$3.png" "$2" "$4" 2>/dev/null &
+        notify-send -u "$1" -a "WebApp Manager" -i "$ICONS/$4.png" "$2" "$3" 2>/dev/null &
     return 0
 }
 
@@ -52,7 +52,7 @@ cmd_install() {
     slug="webapp-$(slugify "$host")"
     if jq -e --arg s "$slug" '.[] | select(.slug==$s)' "$APPS" | grep -q slug; then
         echo "already installed: $name ($slug)"
-        notify normal "WebApp Manager" "$name is already installed" "info" "$slug"
+        notify normal "WebApp Manager" "$name is already installed" "$slug"
         exit 0
     fi
     icon="$ICONS/$slug.png"
@@ -60,7 +60,7 @@ cmd_install() {
         # no favicon available — let the .desktop Icon fall back to the browser icon
         rm -f "$icon"
         icon=""
-        notify normal "WebApp installed" "$name (no favicon found — generic icon)" "info" "$slug"
+        notify normal "WebApp installed" "$name (no favicon found — generic icon)" "$slug"
     fi
     exec_line="$BROWSER --app=$(printf '%s' "$url" | sed 's/"/\\\\\\"/g') --new-window %U"
     local desktop="$DESKTOPS/$slug.desktop"
@@ -85,7 +85,7 @@ EOF
     command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOPS" 2>/dev/null
     echo "installed: $name (WebApp) — $url"
     echo "  launcher: $desktop"
-    notify normal "WebApp installed" "$name (WebApp)\nOpen from Spotlight or the app menu" "info" "$slug"
+    notify normal "WebApp installed" "$name (WebApp)\nOpen from Spotlight or the app menu" "$slug"
 }
 
 # --- list -----------------------------------------------------------------------
@@ -121,7 +121,7 @@ cmd_remove() {
     jq --arg s "$slug" '[.[] | select(.slug != $s)]' "$APPS" > "$APPS.tmp" && mv "$APPS.tmp" "$APPS"
     command -v update-desktop-database >/dev/null 2>&1 && update-desktop-database "$DESKTOPS" 2>/dev/null
     echo "removed: $name ($slug)"
-    notify normal "WebApp removed" "$name is gone from your app menu" "info" "$slug"
+    notify normal "WebApp removed" "$name is gone from your app menu" "$slug"
 }
 
 case "${1:-list}" in

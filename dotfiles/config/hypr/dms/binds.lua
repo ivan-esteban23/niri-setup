@@ -111,7 +111,7 @@ hl.bind("SUPER + ALT + R", hl.dsp.exec_cmd("dms ipc call workspace-rename open")
 
 -- === Scratchpad ===
 hl.bind("SUPER + S", hl.dsp.workspace.toggle_special())
-hl.bind("SUPER + SHIFT + S", hl.dsp.window.move({ workspace = "special", follow = false }))
+hl.bind("SUPER + SHIFT + CTRL + S", hl.dsp.window.move({ workspace = "special", follow = false }))
 hl.bind("SUPER + CTRL + S", hl.dsp.window.move({ workspace = "+0" }))
 
 -- === Move Workspaces ===

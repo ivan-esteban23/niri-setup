@@ -1,0 +1,12 @@
+[Unit]
+Description=Niri agent watcher
+PartOf=niri.service
+After=niri.service
+
+[Service]
+ExecStart=__HOME__/.local/bin/niri-agent watch
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=niri.service

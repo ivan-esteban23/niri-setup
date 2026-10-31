@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""niri-agent — small Niri plugin for AI agent windows.
+
+Subcommands:
+  focus     focus the AI scratchpad, or spawn it
+  context   print the focused window as JSON (for prompts)
+  watch     daemon: notify when an unfocused agent window retitles
+"""
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+AGENT_APP_ID = "ai-scratchpad"
+STATE_DIR = Path.home() / ".cache" / "niri-agent"
+
+
+def niri_json(*args: str):
+    return json.loads(subprocess.check_output(["niri", "msg", "--json", *args], text=True))
+
+
+def action(*args: str) -> None:
+    subprocess.run(["niri", "msg", "action", *args], check=False)
+
+
+def notify(title: str, body: str) -> None:
+    subprocess.Popen(["notify-send", "-a", "Niri Agent", title, body],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def cmd_focus() -> None:
+    for w in niri_json("windows"):
+        if w.get("app_id") == AGENT_APP_ID:
+            action("focus-window", "--id", str(w["id"]))
+            return
+    action("spawn", "--", "alacritty", "--class",
+           f"{AGENT_APP_ID},{AGENT_APP_ID}", "-e", "zsh", "-c", "agy || zsh")
+
+
+def cmd_context() -> None:
+    w = niri_json("focused-window")
+    print(json.dumps({"app_id": w.get("app_id"), "title": w.get("title"), "pid": w.get("pid")}))
+
+
+def cmd_watch() -> None:
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    last_title: dict[int, str] = {}
+    focused: int | None = None
+    proc = subprocess.Popen(["niri", "msg", "--json", "event-stream"],
+                            stdout=subprocess.PIPE, text=True)
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        try:
+            ev = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if "WindowFocusChanged" in ev:
+            focused = ev["WindowFocusChanged"].get("id")
+        elif "WindowOpenedOrChanged" in ev:
+            w = ev["WindowOpenedOrChanged"].get("window", {})
+            if w.get("app_id") != AGENT_APP_ID:
+                continue
+            wid, title = w.get("id"), w.get("title") or ""
+            previous = last_title.get(wid)
+            last_title[wid] = title
+            if previous is not None and previous != title and wid != focused:
+                notify("Agent update", title)
+            (STATE_DIR / "state.json").write_text(
+                json.dumps({"window": wid, "title": title}), encoding="utf-8")
+
+
+COMMANDS = {"focus": cmd_focus, "context": cmd_context, "watch": cmd_watch}
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2 or sys.argv[1] not in COMMANDS:
+        sys.exit(f"usage: niri-agent {{{'|'.join(COMMANDS)}}}")
+    COMMANDS[sys.argv[1]]()

@@ -112,6 +112,9 @@ install_tree() {   # install_tree <srcdir> <dstdir>
 
 say "Installing dotfiles → ~/.config"
 install_tree "$DOT/config" "$HOME/.config"
+mkdir -p "$HOME/.config/fontconfig/conf.d"
+ln -sfn /usr/share/fontconfig/conf.avail/10-nerd-font-symbols.conf \
+    "$HOME/.config/fontconfig/conf.d/10-nerd-font-symbols.conf"
 
 say "Installing scripts → ~/.local/bin"
 install_tree "$DOT/local/bin" "$HOME/.local/bin"
@@ -246,6 +249,10 @@ if [ "$DRY" != 1 ]; then
                     "$HOME/.config/systemd/user/$w/nautilus-clipboard-bridge.service"
         done
     fi
+    if [ -f "$HOME/.config/systemd/user/niri-agent.service" ]; then
+        ln -sfn "$HOME/.config/systemd/user/niri-agent.service" \
+                "$HOME/.config/systemd/user/niri.service.wants/niri-agent.service"
+    fi
     if [ -f "$HOME/.config/systemd/user/ydotoold.service" ]; then
         ln -sfn "$HOME/.config/systemd/user/ydotoold.service" \
                 "$HOME/.config/systemd/user/niri.service.wants/ydotoold.service"
@@ -257,6 +264,13 @@ if [ "$DRY" != 1 ]; then
     command -v update-desktop-database >/dev/null && update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
     command -v xdg-user-dirs-update >/dev/null && xdg-user-dirs-update 2>/dev/null || true
     command -v fc-cache >/dev/null && fc-cache -f >/dev/null 2>&1 || true
+fi
+
+WHISPER_MODEL="$HOME/.local/share/whisper-models/ggml-base.bin"
+if [ "$DRY" != 1 ] && [ ! -f "$WHISPER_MODEL" ]; then
+    mkdir -p "$(dirname "$WHISPER_MODEL")"
+    curl -fL -o "$WHISPER_MODEL" \
+        https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 fi
 
 # ── 6. External CLIs (OpenCode, Qoder & Boat) ─────────────────────────────────

@@ -12,6 +12,9 @@ binds {
     Mod+Shift+Return hotkey-overlay-title="AI Agent Scratchpad" {
         spawn "alacritty" "--class" "ai-scratchpad,ai-scratchpad" "-e" "zsh" "-c" "agy || zsh";
     }
+    Mod+Shift+Y hotkey-overlay-title="Agent: Focus Scratchpad" {
+        spawn "__HOME__/.local/bin/niri-agent" "focus";
+    }
     Mod+Alt+Return hotkey-overlay-title="Scratchpad Terminal" {
         spawn "alacritty" "--class" "scratchpad,scratchpad";
     }

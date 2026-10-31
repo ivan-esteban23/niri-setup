@@ -69,9 +69,9 @@ cmd_run() {
         set_state "busy" "already running"
         exit 0
     fi
-    trap 'rmdir "$LOCK" 2>/dev/null' EXIT
 
     (
+        trap 'rmdir "$LOCK" 2>/dev/null' EXIT
         exec > "$LOG" 2>&1
         FRAMEWORK_SAMPLE='Full-length candid street-style photograph of a young woman walking toward the camera on a city sidewalk at blue hour. She has long straight dark hair with blunt bangs and thin dark rectangular glasses, and wears a fitted black ribbed turtleneck crop top, a low-rise black belt with a silver buckle, and a dark washed asymmetric midi skirt with an uneven hem. She carries a leopard print tote bag and wears tall slouchy black boots. Off-center composition with a granular stone pillar on the left edge, leading lines from the curb, and blurred parked cars and traffic lights glowing green in the background. Soft overcast dusk lighting with cool blue-gray tones, muted palette of charcoal and slate with tan leopard accents. Eye-level, moderate depth of field, visible film grain, slightly faded blacks, nostalgic early-2000s street fashion aesthetic, 35mm film look.'
 
@@ -155,19 +155,19 @@ cmd_auto() {
     if [ -s "$IMAGE" ] && is_image "$IMAGE" && grep -q '"phase":"staged"\|"phase":"idle"\|"done"\|"error"' "$STATE" 2>/dev/null; then
         # image already staged — build directly, unless clipboard holds a NEW image
         if wl-paste -t image/png 2>/dev/null | cmp -s - "$IMAGE" >/dev/null 2>&1; then
-            exec "$SCRIPT" run
+            cmd_run
         fi
         # clipboard differs → re-stage then run
         if wl-paste -t image/png > "$IMAGE.tmp" 2>/dev/null && is_image "$IMAGE.tmp"; then
             mv -f "$IMAGE.tmp" "$IMAGE"
         fi
-        exec "$SCRIPT" run
+        cmd_run
     fi
     if wl-paste -t image/png > "$IMAGE.tmp" 2>/dev/null && is_image "$IMAGE.tmp" && [ -s "$IMAGE.tmp" ]; then
         mv -f "$IMAGE.tmp" "$IMAGE"
         set_state "staged" "attached from clipboard"
     fi
-    exec "$SCRIPT" run
+    cmd_run
 }
 
 case "${1:-status}" in

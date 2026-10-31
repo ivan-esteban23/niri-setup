@@ -27,6 +27,7 @@ efibootmgr
 eza
 fastfetch
 fd
+ffmpeg
 firefox
 foot
 foot-terminfo
@@ -49,6 +50,7 @@ imagemagick
 intel-ucode
 inter-font
 jq
+kdeconnect
 kimageformats
 lazygit
 libnautilus-extension-docs

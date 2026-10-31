@@ -251,12 +251,11 @@ apply_provider() {
 }
 
 cycle_provider() {
-    local cur next i
+    local cur i
     cur=$(detect_provider)
     for i in "${!ORDER[@]}"; do
         if [ "${ORDER[$i]}" = "$cur" ]; then
-            next=${ORDER[(( (i + 1) % ${#ORDER[@]} ))]}
-            apply_provider "$next"
+            apply_provider "${ORDER[$(( (i + 1) % ${#ORDER[@]} ))]}"
             return $?
         fi
     done
@@ -264,7 +263,10 @@ cycle_provider() {
 }
 
 # --- JSON output -------------------------------------------------------------
-json_array() { printf '%s\n' "$@" | jq -R . | jq -sc .; }
+json_array() {
+    if [ "$#" -eq 0 ]; then echo '[]'; return; fi
+    printf '%s\n' "$@" | jq -R . | jq -sc .
+}
 
 providers_json() {
     local p out=()

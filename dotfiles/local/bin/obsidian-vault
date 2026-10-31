@@ -243,13 +243,16 @@ cmd_restore() {
 
     # Register in ~/.config/obsidian/obsidian.json
     mkdir -p "$CONFIG_DIR"
-    local vault_id ts
+    local vault_id ts obs_json="$CONFIG_DIR/obsidian.json"
     vault_id="c3091d3380ea513f"
     ts=$(date +%s%3N)
 
-    cat > "$CONFIG_DIR/obsidian.json" << EOF
-{"vaults":{"$vault_id":{"path":"$VAULT_DIR","ts":$ts,"open":true}}}
-EOF
+    if [ ! -f "$obs_json" ]; then
+        echo '{"vaults":{}}' > "$obs_json"
+    fi
+    jq --arg id "$vault_id" --arg path "$VAULT_DIR" --argjson ts "$ts" \
+        '(.vaults // {}) as $v | .vaults = ($v + {($id): {"path": $path, "ts": $ts, "open": true}})' \
+        "$obs_json" > "$obs_json.tmp" && mv "$obs_json.tmp" "$obs_json"
     ok "Registered vault in $CONFIG_DIR/obsidian.json"
 }
 
@@ -260,7 +263,7 @@ cmd_new() {
     [ -n "$title" ] || die "Usage: obsidian-vault new <Note Title> [tag1,tag2]"
     local tags="${2:-notes}"
 
-    local filename="${title// / }.md"
+    local filename="${title// /-}.md"
     local filepath="$VAULT_DIR/$filename"
 
     if [ -f "$filepath" ]; then
