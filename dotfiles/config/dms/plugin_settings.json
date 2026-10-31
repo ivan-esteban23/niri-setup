@@ -22,5 +22,8 @@
   },
   "dnsSwitcher": {
     "enabled": true
+  },
+  "videoDownloader": {
+    "enabled": true
   }
 }

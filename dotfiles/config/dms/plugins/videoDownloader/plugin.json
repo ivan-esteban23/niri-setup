@@ -1,0 +1,18 @@
+{
+    "id": "videoDownloader",
+    "name": "Video Downloader",
+    "description": "Download videos with yt-dlp selecting format (h264, h265, VP9, AV1) and resolution (480p to 2160p)",
+    "version": "1.0.0",
+    "author": "ivanaguilera",
+    "type": "widget",
+    "capabilities": [
+        "control-center",
+        "dankbar-widget"
+    ],
+    "component": "./VideoDownloaderWidget.qml",
+    "icon": "video_download",
+    "permissions": [
+        "process",
+        "settings_read"
+    ]
+}

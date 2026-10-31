@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+"""
+video-dl — High-resolution Video Downloader backend using yt-dlp.
+Supports selecting video resolution (480p, 720p, 1080p, 1440p, 2160p)
+and video format / codec (h264, h265, VP9, AV1).
+Provides JSON state for the Dux Shell (DMS) plugin and desktop notifications.
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+CACHE_DIR = Path.home() / ".cache" / "video-downloader"
+STATE_FILE = CACHE_DIR / "state.json"
+HISTORY_FILE = CACHE_DIR / "history.json"
+
+RESOLUTIONS = ["480p", "720p", "1080p", "1440p", "2160p"]
+FORMATS = ["h264", "h265", "VP9", "AV1"]
+
+HEIGHT_MAP = {
+    "480p": 480,
+    "720p": 720,
+    "1080p": 1080,
+    "1440p": 1440,
+    "2160p": 2160,
+}
+
+CODEC_FILTER = {
+    "h264": "vcodec~='(?i)^(avc|h264)'",
+    "h265": "vcodec~='(?i)^(hev|hvc|hevc|h265)'",
+    "vp9": "vcodec~='(?i)^vp0?9'",
+    "av1": "vcodec~='(?i)^av0?1'",
+}
+
+
+def get_download_dir() -> Path:
+    """Find the best user download folder, preferring ~/Descargas/Videos or ~/Downloads/Videos."""
+    for candidate in [
+        Path.home() / "Descargas" / "Videos",
+        Path.home() / "Downloads" / "Videos",
+        Path.home() / "Descargas",
+        Path.home() / "Downloads",
+    ]:
+        if candidate.exists():
+            return candidate
+
+    default_dir = Path.home() / "Descargas" / "Videos"
+    default_dir.mkdir(parents=True, exist_ok=True)
+    return default_dir
+
+
+def notify(title: str, body: str, urgency: str = "normal", icon: str = "video-x-generic") -> None:
+    if shutil.which("notify-send"):
+        subprocess.Popen(
+            ["notify-send", "-u", urgency, "-a", "Video Downloader", "-i", icon, title, body],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+
+
+def set_state(phase: str, detail: str = "", url: str = "", resolution: str = "", codec: str = "", filename: str = "") -> None:
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        data = {
+            "phase": phase,
+            "detail": detail,
+            "url": url,
+            "resolution": resolution,
+            "codec": codec,
+            "filename": filename,
+            "timestamp": int(time.time()),
+        }
+        STATE_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def get_state() -> dict:
+    if STATE_FILE.is_file():
+        try:
+            return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"phase": "idle", "detail": "Ready"}
+
+
+def append_history(title: str, url: str, path: str, resolution: str, codec: str) -> None:
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        history = []
+        if HISTORY_FILE.is_file():
+            try:
+                history = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                history = []
+        history.insert(0, {
+            "title": title,
+            "url": url,
+            "path": path,
+            "resolution": resolution,
+            "codec": codec,
+            "timestamp": int(time.time()),
+        })
+        history = history[:20]  # Keep last 20
+        HISTORY_FILE.write_text(json.dumps(history, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def get_clipboard_url() -> str:
+    """Check if clipboard contains a plausible HTTP/HTTPS video URL."""
+    if not shutil.which("wl-paste"):
+        return ""
+    try:
+        text = subprocess.check_output(["wl-paste", "--no-newline"], text=True, stderr=subprocess.DEVNULL, timeout=2).strip()
+        if re.match(r"^https?://[^\s]+$", text):
+            return text
+    except Exception:
+        pass
+    return ""
+
+
+def build_yt_dlp_format(resolution: str, codec: str) -> str:
+    height = HEIGHT_MAP.get(resolution.lower(), 1080)
+    filter_expr = CODEC_FILTER.get(codec.lower(), CODEC_FILTER["h264"])
+    # Format selection with fallback:
+    # 1. Best video matching codec + resolution + best audio
+    # 2. Best video matching resolution + best audio
+    # 3. Best overall
+    return f"bestvideo[height<={height}][{filter_expr}]+bestaudio/bestvideo[height<={height}]+bestaudio/best[height<={height}]/best"
+
+
+def run_download(url: str, resolution: str = "1080p", codec: str = "h264", background: bool = False) -> int:
+    if not shutil.which("yt-dlp"):
+        msg = "yt-dlp is not installed. Please install it (sudo pacman -S yt-dlp)."
+        set_state("error", msg, url, resolution, codec)
+        notify("Video Downloader", msg, urgency="critical", icon="dialog-error")
+        print(f"Error: {msg}", file=sys.stderr)
+        return 1
+
+    url = url.strip()
+    if not url:
+        print("Error: Empty URL provided.", file=sys.stderr)
+        return 1
+
+    dest_dir = get_download_dir()
+    format_spec = build_yt_dlp_format(resolution, codec)
+
+    set_state("downloading", f"Starting download in {resolution} ({codec})…", url, resolution, codec)
+    notify("Video Downloader", f"Starting download: {resolution} · {codec.upper()}\n{url}", urgency="low")
+
+    output_template = str(dest_dir / "%(title)s [%(resolution)s].%(ext)s")
+
+    cmd = [
+        "yt-dlp",
+        "--format", format_spec,
+        "--merge-output-format", "mp4",
+        "--output", output_template,
+        "--embed-metadata",
+        "--embed-thumbnail",
+        "--no-mtime",
+        "--no-playlist",
+        url,
+    ]
+
+    if background:
+        # Fork and detach
+        log_file = CACHE_DIR / "download.log"
+        with open(log_file, "w", encoding="utf-8") as log_fp:
+            proc = subprocess.Popen(cmd, stdout=log_fp, stderr=subprocess.STDOUT)
+        print(json.dumps({"status": "started", "pid": proc.pid, "url": url, "resolution": resolution, "codec": codec}))
+        return 0
+
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+        video_title = ""
+        saved_file = ""
+
+        if proc.stdout:
+            for line in proc.stdout:
+                line_str = line.strip()
+                if "[download] Destination:" in line_str:
+                    saved_file = line_str.split("[download] Destination:")[-1].strip()
+                elif "[Merger] Merging formats into" in line_str:
+                    m = re.search(r'Merging formats into "([^"]+)"', line_str)
+                    if m:
+                        saved_file = m.group(1)
+                elif line_str.startswith("[info]"):
+                    m = re.search(r': Downloading \d+ format\(s\): (.+)', line_str)
+                    if not video_title and m:
+                        video_title = m.group(1)
+
+        proc.wait()
+
+        if proc.returncode == 0:
+            final_name = os.path.basename(saved_file) if saved_file else "Video"
+            set_state("done", f"Saved: {final_name}", url, resolution, codec, filename=str(saved_file))
+            append_history(final_name, url, str(saved_file), resolution, codec)
+            notify(
+                "🎬 Download Complete",
+                f"{final_name}\nSaved to {dest_dir.name}/",
+                urgency="normal",
+                icon="video-x-generic",
+            )
+            print(f"\n✓ Download completed: {saved_file or dest_dir}")
+            return 0
+        else:
+            err_msg = f"yt-dlp failed (exit code {proc.returncode})"
+            set_state("error", err_msg, url, resolution, codec)
+            notify("Video Downloader", "Download failed. Check URL or network.", urgency="critical", icon="dialog-error")
+            print(f"\n✗ {err_msg}", file=sys.stderr)
+            return proc.returncode
+    except Exception as e:
+        err_msg = str(e)
+        set_state("error", err_msg, url, resolution, codec)
+        notify("Video Downloader", f"Error: {err_msg}", urgency="critical", icon="dialog-error")
+        print(f"\n✗ Error: {err_msg}", file=sys.stderr)
+        return 1
+
+
+def interactive_wizard() -> int:
+    """Interactive terminal wizard that prompts for URL, resolution, and format."""
+    print("=" * 60)
+    print("           🎬 Video Downloader (yt-dlp)")
+    print("=" * 60)
+
+    clip_url = get_clipboard_url()
+    prompt_url = "Enter video URL"
+    if clip_url:
+        prompt_url += f" (Press Enter for clipboard: {clip_url[:45]}...)"
+    prompt_url += ": "
+
+    try:
+        url_input = input(prompt_url).strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nAborted.")
+        return 0
+
+    url = url_input if url_input else clip_url
+    if not url:
+        print("Error: No URL provided.")
+        return 1
+
+    # Format / Codec Selection
+    print("\nSelect video format / codec:")
+    for idx, f in enumerate(FORMATS, 1):
+        extra = ""
+        if f == "h264":
+            extra = " (Default - maximum compatibility on all devices)"
+        elif f == "h265":
+            extra = " (HEVC - smaller file size, high quality)"
+        elif f == "VP9":
+            extra = " (Google/YouTube open standard)"
+        elif f == "AV1":
+            extra = " (Next-gen open royalty-free codec)"
+        print(f"  {idx}) {f}{extra}")
+
+    try:
+        codec_choice = input(f"Choose format [1-{len(FORMATS)}, default 1=h264]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nAborted.")
+        return 0
+
+    codec = FORMATS[0]
+    if codec_choice.isdigit():
+        idx = int(codec_choice) - 1
+        if 0 <= idx < len(FORMATS):
+            codec = FORMATS[idx]
+    elif codec_choice.upper() in [x.upper() for x in FORMATS]:
+        codec = codec_choice
+
+    # Resolution Selection
+    print("\nSelect max video resolution:")
+    for idx, r in enumerate(RESOLUTIONS, 1):
+        extra = ""
+        if r == "1080p":
+            extra = " (Default Full HD)"
+        elif r == "2160p":
+            extra = " (4K Ultra HD)"
+        elif r == "1440p":
+            extra = " (2K Quad HD)"
+        print(f"  {idx}) {r}{extra}")
+
+    try:
+        res_choice = input(f"Choose resolution [1-{len(RESOLUTIONS)}, default 3=1080p]: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        print("\nAborted.")
+        return 0
+
+    resolution = "1080p"
+    if res_choice.isdigit():
+        idx = int(res_choice) - 1
+        if 0 <= idx < len(RESOLUTIONS):
+            resolution = RESOLUTIONS[idx]
+    elif res_choice.lower() in [x.lower() for x in RESOLUTIONS]:
+        resolution = res_choice.lower()
+
+    print(f"\n==> Downloading with resolution: {resolution}, codec: {codec}")
+    print(f"==> Save destination: {get_download_dir()}\n")
+
+    return run_download(url, resolution=resolution, codec=codec, background=False)
+
+
+def main() -> int:
+    args = sys.argv[1:]
+
+    if not args:
+        return interactive_wizard()
+
+    cmd = args[0]
+
+    if cmd in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        print("""
+Usage:
+  video-dl                                Interactive download wizard
+  video-dl download <url> [res] [codec]   Download video directly
+  video-dl download-bg <url> [res] [codec] Download video in background
+  video-dl status                         Print current downloader state (JSON)
+  video-dl history                        Print recent downloads (JSON)
+  video-dl clear                          Reset downloader state
+
+Supported resolutions: 480p, 720p, 1080p, 1440p, 2160p
+Supported formats / codecs: h264, h265, VP9, AV1
+""")
+        return 0
+
+    if cmd == "status":
+        print(json.dumps(get_state()))
+        return 0
+
+    if cmd == "history":
+        history = []
+        if HISTORY_FILE.is_file():
+            try:
+                history = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        print(json.dumps(history))
+        return 0
+
+    if cmd == "clear":
+        set_state("idle", "Ready")
+        print('{"status": "cleared"}')
+        return 0
+
+    if cmd in ("download", "download-bg"):
+        if len(args) < 2:
+            print("Usage: video-dl download <url> [resolution: 480p|720p|1080p|1440p|2160p] [format: h264|h265|VP9|AV1]", file=sys.stderr)
+            return 1
+        url = args[1]
+        resolution = args[2] if len(args) > 2 else "1080p"
+        codec = args[3] if len(args) > 3 else "h264"
+        bg = (cmd == "download-bg")
+        return run_download(url, resolution=resolution, codec=codec, background=bg)
+
+    # If first argument looks like a URL, download it directly
+    if args[0].startswith("http://") or args[0].startswith("https://"):
+        url = args[0]
+        resolution = args[1] if len(args) > 1 else "1080p"
+        codec = args[2] if len(args) > 2 else "h264"
+        return run_download(url, resolution=resolution, codec=codec, background=False)
+
+    print(f"Unknown command: {cmd}. Run 'video-dl --help' for usage.", file=sys.stderr)
+    return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

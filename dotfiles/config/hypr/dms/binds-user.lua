@@ -21,6 +21,9 @@ hl.bind("SUPER + ALT + W", hl.dsp.exec_cmd("__HOME__/.local/share/appimages/WeCh
 -- === WebApp Manager ===
 hl.bind("SUPER + G", hl.dsp.exec_cmd("dms ipc call control-center openWith plugin_webappManager"))
 
+-- === Video Downloader ===
+hl.bind("SUPER + ALT + V", hl.dsp.exec_cmd("dms ipc call control-center openWith plugin_videoDownloader"))
+
 -- === Image Prompt Builder ===
 hl.bind("SUPER + SHIFT + B", hl.dsp.exec_cmd("__HOME__/.local/bin/img-prompt stage"))
 hl.bind("SUPER + SHIFT + G", hl.dsp.exec_cmd("__HOME__/.local/bin/img-prompt run"))

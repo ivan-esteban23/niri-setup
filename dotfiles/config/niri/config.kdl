@@ -279,6 +279,11 @@ binds {
         spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_dnsSwitcher";
     }
 
+    // === Video Downloader (yt-dlp: format & resolution selection) ===
+    Mod+Alt+V hotkey-overlay-title="Video Downloader (yt-dlp)" {
+        spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_videoDownloader";
+    }
+
     Mod+Alt+W hotkey-overlay-title="WeChat" {
         spawn "__HOME__/.local/share/appimages/WeChatLinux_x86_64.AppImage";
     }
