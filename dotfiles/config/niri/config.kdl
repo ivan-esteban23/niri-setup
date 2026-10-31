@@ -284,6 +284,11 @@ binds {
         spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_videoDownloader";
     }
 
+    // === Theme Switcher ===
+    Mod+Ctrl+T hotkey-overlay-title="Theme Switcher" {
+        spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_themeSwitcher";
+    }
+
     // === Reminders ===
     Mod+Alt+M hotkey-overlay-title="Reminders" {
         spawn "dms" "ipc" "call" "control-center" "openWith" "plugin_reminders";
