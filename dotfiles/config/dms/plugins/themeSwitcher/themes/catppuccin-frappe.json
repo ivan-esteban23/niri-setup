@@ -1,0 +1,20 @@
+{
+  "name": "Catppuccin Frapp\u00e9",
+  "primary": "#ca9ee6",
+  "primaryText": "#303446",
+  "secondary": "#8caaee",
+  "surface": "#303446",
+  "surfaceText": "#c6d0f5",
+  "surfaceVariant": "#51576d",
+  "surfaceVariantText": "#c6d0f5",
+  "surfaceTint": "#ca9ee6",
+  "background": "#303446",
+  "backgroundText": "#c6d0f5",
+  "outline": "#b5bfe2",
+  "surfaceContainerLowest": "#292c3c",
+  "surfaceContainerLow": "#303446",
+  "surfaceContainer": "#414559",
+  "surfaceContainerHigh": "#414559",
+  "surfaceContainerHighest": "#51576d",
+  "error": "#e78284"
+}

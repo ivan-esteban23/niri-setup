@@ -1,0 +1,20 @@
+{
+  "name": "Dracula",
+  "primary": "#bd93f9",
+  "primaryText": "#282a36",
+  "secondary": "#8be9fd",
+  "surface": "#282a36",
+  "surfaceText": "#f8f8f2",
+  "surfaceVariant": "#44475a",
+  "surfaceVariantText": "#f8f8f2",
+  "surfaceTint": "#bd93f9",
+  "background": "#282a36",
+  "backgroundText": "#f8f8f2",
+  "outline": "#f8f8f2",
+  "surfaceContainerLowest": "#21222c",
+  "surfaceContainerLow": "#282a36",
+  "surfaceContainer": "#343746",
+  "surfaceContainerHigh": "#343746",
+  "surfaceContainerHighest": "#44475a",
+  "error": "#ff5555"
+}

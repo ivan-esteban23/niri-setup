@@ -28,5 +28,8 @@
   },
   "reminders": {
     "enabled": true
+  },
+  "themeSwitcher": {
+    "enabled": true
   }
 }

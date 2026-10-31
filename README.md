@@ -39,6 +39,16 @@ niri-reminders delete REMINDER_ID
 
 Run the offline backend checks with `python3 -m unittest discover -s tests -v`.
 
+## Theme Switcher
+
+The **Theme Switcher** DMS plugin provides Tokyo Night, Dracula, Catppuccin Mocha, Macchiato and Frappé, plus warm Gruvbox Light, Solarized Light and Rosé Pine Dawn. Each row previews its background and accent; the check mark shows the selected palette. The light options use cream, sand and muted rose surfaces instead of pure-white backgrounds.
+
+A fresh `./install.sh` installation copies and enables the plugin with the other DMS configuration. On an existing setup, first review the installer's backup and overwrite behavior; to install just this plugin, copy `dotfiles/config/dms/plugins/themeSwitcher` to `~/.config/dms/plugins/`, then enable **Theme Switcher** in DMS plugin settings and add it to the control center or bar. Reload DMS if it does not discover the plugin. Select a palette in its panel; use DMS theme settings to return to another custom, stock or wallpaper-derived theme. No keyboard shortcut is added.
+
+The switcher uses DMS custom-theme and light/dark settings. DMS may regenerate its configured application theme files when a palette changes; which applications follow it depends on the DMS integration and templates enabled on your machine. Existing app-specific themes are not guaranteed to change. An automatic DMS light/dark schedule can later change the mode. Theme appearance, keyboard navigation and application integrations still need verification in a real DMS/Niri session.
+
+Palette colors are adapted for DMS roles from upstream sources: [Tokyo Night](https://github.com/folke/tokyonight.nvim) (Apache-2.0), [Dracula](https://github.com/dracula/dracula-theme) (MIT), [Catppuccin](https://github.com/catppuccin/palette) (MIT), [Gruvbox](https://github.com/morhetz/gruvbox), [Solarized](https://github.com/altercation/solarized) (MIT), and [Rosé Pine](https://github.com/rose-pine/rose-pine-palette) (MIT). These are palette adaptations, not copies of the projects' plugins; some role colors are adjusted for readability. Run `python3 -m unittest discover -s tests -v` for offline palette and reminder checks.
+
 ## Custom keybindings
 
 Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl`, backed by helper scripts in `dotfiles/local/bin/` and Dux Shell plugins in `dotfiles/config/dms/plugins/`. All of it is rootless.
