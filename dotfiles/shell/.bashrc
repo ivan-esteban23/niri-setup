@@ -1,11 +1,3 @@
-# ASCII BOAT SHELL INTEGRATION START boat
-case ":$PATH:" in
-  *":__HOME__/.ascii/bin:"*) ;;
-  *) PATH="__HOME__/.ascii/bin:$PATH" ;;
-esac
-export PATH
-# ASCII BOAT SHELL INTEGRATION END boat
-
 #
 # ~/.bashrc
 #
@@ -59,10 +51,3 @@ unset _qoder_dispatcher_entry _qoder_dispatcher_rest _qoder_dispatcher_tail _qod
 # END QODER_DISPATCHER_PATH v1
 
 
-# Boat Sandboxes
-export BOAT_REF="bx_4qhc25xp"
-export BOAT_PORTRAIT="bx_wbqyt3bf"
-alias boat-ref='boat exec bx_4qhc25xp --cwd Work/the-reference-edit'
-alias boat-portrait='boat exec bx_wbqyt3bf --cwd Work/the-portrait-edit-issue-02'
-alias boat-ref-ssh='boat ssh bx_4qhc25xp'
-alias boat-portrait-ssh='boat ssh bx_wbqyt3bf'

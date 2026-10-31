@@ -7,7 +7,3 @@
 - **Qoder CLI Integration:** Qoder CLI is installed at `~/.local/bin/qoder` (and `qodercli`). Use the `qoder` skill when requested. Supported model presets:
   - "Qwen 3.8 Flash Extra High": `qodercli -m Qwen3.8-Flash --reasoning-effort xhigh --dangerously-skip-permissions -p "<prompt>"`
   - "DeepSeek Flash High": `qodercli -m DeepSeek-Flash --reasoning-effort high --dangerously-skip-permissions -p "<prompt>"`
-- **Boat Cloud Sandboxes:** The user has two persistent cloud sandboxes on Boat (`boat.dev`), managed via `boat-box` or `boat`:
-  - `bx_4qhc25xp`: **The Reference Edit** (alias: `boat-ref` or `boat exec bx_4qhc25xp`)
-  - `bx_wbqyt3bf`: **Portrait Issue 02** (alias: `boat-portrait` or `boat exec bx_wbqyt3bf`)
-  Use the `boat` skill to check status, resume, stop, port forward, or execute remote commands in them.
