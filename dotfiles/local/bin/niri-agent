@@ -38,7 +38,10 @@ def cmd_focus() -> None:
 
 
 def cmd_context() -> None:
-    w = niri_json("focused-window")
+    try:
+        w = niri_json("focused-window") or {}
+    except Exception:
+        w = {}
     print(json.dumps({"app_id": w.get("app_id"), "title": w.get("title"), "pid": w.get("pid")}))
 
 

@@ -55,16 +55,19 @@ case "$CMD" in
         boat list --all
         ;;
     start|resume)
+        [ -n "${1:-}" ] || { echo "Usage: boat-box start <ref|portrait>" >&2; exit 1; }
         ID="$(resolve_id "${1:-}")"
         echo "Starting Boat sandbox $ID..."
         boat resume "$ID"
         ;;
     stop)
+        [ -n "${1:-}" ] || { echo "Usage: boat-box stop <ref|portrait>" >&2; exit 1; }
         ID="$(resolve_id "${1:-}")"
         echo "Stopping Boat sandbox $ID..."
         boat stop "$ID"
         ;;
     info)
+        [ -n "${1:-}" ] || { echo "Usage: boat-box info <ref|portrait>" >&2; exit 1; }
         ID="$(resolve_id "${1:-}")"
         boat info "$ID"
         ;;
@@ -112,12 +115,13 @@ case "$CMD" in
         fi
         ;;
     exec)
+        [ $# -ge 2 ] || { echo "Usage: boat-box exec <ref|portrait> <cmd..>" >&2; exit 1; }
         RAW_TARGET="${1:-}"
         ID="$(resolve_id "$RAW_TARGET")"
         DEFAULT_DIR="$(resolve_dir "$RAW_TARGET")"
-        shift
+        shift || true
         if [ "${1:-}" = "--home" ]; then
-            shift
+            shift || true
             boat exec "$ID" "$@"
         elif [ -n "$DEFAULT_DIR" ]; then
             boat exec "$ID" --cwd "$DEFAULT_DIR" "$@"
@@ -131,8 +135,9 @@ case "$CMD" in
         boat ssh "$ID" "$@"
         ;;
     prompt)
+        [ $# -ge 2 ] || { echo "Usage: boat-box prompt <ref|portrait> <txt>" >&2; exit 1; }
         ID="$(resolve_id "${1:-}")"
-        shift
+        shift || true
         boat prompt "$ID" "$@"
         ;;
     forward)

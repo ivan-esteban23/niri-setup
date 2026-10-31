@@ -71,7 +71,7 @@ if [ "$DO_HW" != 1 ]; then
     # base/base-devel are still needed for AUR builds
     NATIVE+=(base-devel git)
 fi
-run sudo pacman -Syu --needed --noconfirm "${NATIVE[@]}" uv
+run sudo pacman -Syu --needed --noconfirm "${NATIVE[@]}"
 
 if [ "$DO_AUR" = 1 ]; then
     if ! command -v yay >/dev/null; then
@@ -112,9 +112,11 @@ install_tree() {   # install_tree <srcdir> <dstdir>
 
 say "Installing dotfiles → ~/.config"
 install_tree "$DOT/config" "$HOME/.config"
-mkdir -p "$HOME/.config/fontconfig/conf.d"
-ln -sfn /usr/share/fontconfig/conf.avail/10-nerd-font-symbols.conf \
-    "$HOME/.config/fontconfig/conf.d/10-nerd-font-symbols.conf"
+if [ "$DRY" != 1 ]; then
+    mkdir -p "$HOME/.config/fontconfig/conf.d"
+    ln -sfn /usr/share/fontconfig/conf.avail/10-nerd-font-symbols.conf \
+        "$HOME/.config/fontconfig/conf.d/10-nerd-font-symbols.conf"
+fi
 
 say "Installing scripts → ~/.local/bin"
 install_tree "$DOT/local/bin" "$HOME/.local/bin"

@@ -123,6 +123,7 @@ ttf-liberation
 ttf-nerd-fonts-symbols
 unzip
 upower
+uv
 vim
 viu
 vlc
