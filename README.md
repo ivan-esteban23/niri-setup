@@ -46,6 +46,7 @@ Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl
 | Key | Action | Backed by |
 | :--- | :--- | :--- |
 | `Mod + Alt + D` | DNS Switcher panel (open-only, not a toggle) | `dnsSwitcher` · `dns-switch` |
+| `Mod + Alt + M` | Open the Reminders panel | `reminders` · `niri-reminders` |
 | `Mod + Shift + S` / `Mod + Alt + S` | Sudo timer: start / stop (600 min passwordless) | `sudoTimer` · `sudo-timer` |
 | `Mod + G` | Install a site as a Brave web app | `webappManager` · `webapp` |
 | `Mod + Shift + B` / `Mod + Shift + G` | Image prompt: stage clipboard reference / build ChatGPT prompt | `imgPrompt` · `img-prompt` |
