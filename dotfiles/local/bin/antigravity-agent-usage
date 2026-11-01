@@ -1,0 +1,45 @@
+#!/usr/bin/env python3
+"""Display the latest local Antigravity Cockpit quota snapshot, without credentials."""
+import datetime as dt
+import json
+import math
+import os
+from pathlib import Path
+import time
+
+
+def snapshot(root):
+    candidates = []
+    for path in root.glob('*.json'):
+        try:
+            if path.stat().st_size > 2_000_000:
+                continue
+            data = json.loads(path.read_text(encoding='utf-8'))
+            updated = data.get('updatedAt')
+            if data.get('version') != 1 or data.get('source') != 'local' or isinstance(updated, bool) or not isinstance(updated, (int, float)) or not math.isfinite(updated) or not isinstance(data.get('models'), list):
+                continue
+            candidates.append((updated, data))
+        except (OSError, ValueError, AttributeError):
+            continue
+    if not candidates:
+        return {'status': 'No local Cockpit snapshot. Run Antigravity Cockpit in local monitoring mode.', 'limits': []}
+    updated, data = max(candidates, key=lambda item: item[0])
+    limits = []
+    for model in data['models']:
+        if not isinstance(model, dict): continue
+        remaining = model.get('remainingPercentage')
+        if remaining is None and isinstance(model.get('remainingFraction'), (int, float)) and not isinstance(model.get('remainingFraction'), bool): remaining = model['remainingFraction'] * 100
+        if isinstance(remaining, bool) or not isinstance(remaining, (int, float)) or not math.isfinite(remaining): continue
+        label = model.get('displayName') or model.get('id')
+        if not isinstance(label, str) or not label: continue
+        reset = None
+        try:
+            if model.get('resetTime'): reset = dt.datetime.fromisoformat(model['resetTime'].replace('Z', '+00:00')).timestamp()
+        except (ValueError, TypeError, OverflowError): pass
+        limits.append({'label': label, 'used': round(100 - max(0, min(100, remaining))), 'reset': reset})
+    age = max(0, int((time.time() * 1000 - updated) / 60000))
+    status = f'Latest local Cockpit snapshot · {age} min old' if limits else 'Latest local Cockpit snapshot has no model quotas.'
+    return {'status': status, 'limits': limits}
+
+if __name__ == '__main__':
+    print(json.dumps(snapshot(Path.home() / '.antigravity_cockpit/cache/quota_v2/local'), ensure_ascii=False))

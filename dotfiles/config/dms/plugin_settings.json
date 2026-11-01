@@ -31,5 +31,8 @@
   },
   "themeSwitcher": {
     "enabled": true
+  },
+  "aiAgents": {
+    "enabled": true
   }
 }

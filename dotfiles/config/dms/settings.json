@@ -45,6 +45,7 @@
         "memUsage",
         "notificationButton",
         "battery",
+        "aiAgents",
         "dnsSwitcher",
         {
           "id": "controlCenterButton",

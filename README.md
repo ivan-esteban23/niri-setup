@@ -100,3 +100,9 @@ Bound in `dotfiles/config/niri/config.kdl` + `dotfiles/config/niri/dms/binds.kdl
 ```bash
 ydotool key 125:1 56:1 32:1 32:0 56:0 125:0   # Super_L + Alt_L + D (evdev codes)
 ```
+
+## AI Agents bar widget
+
+The AI Agents bar pill opens a panel with Codex subscription rate-limit windows, percentages used and reset times. It refreshes every five minutes and offers a manual refresh. The `codex` CLI must be installed and signed in to a supported ChatGPT subscription; API-key billing and other providers may not report subscription limits. Errors and unavailable limits are shown in the panel. The widget uses the local Codex app-server and does not read or store credentials itself. Antigravity usage comes from the most recently updated local-mode cache of the Antigravity Cockpit extension (`~/.antigravity_cockpit/cache/quota_v2/local`); install the extension and run local monitoring to populate it. The panel shows the snapshot age and does not access credentials or request a refresh from Cockpit. With multiple accounts it shows the newest snapshot without identifying the account. Claude, Grok, account management and cross-device aggregation are not yet supported.
+
+A fresh installation copies and enables the plugin and adds `aiAgents` to the bar. On an existing setup, review the installer's backup and overwrite behavior before updating; alternatively copy `dotfiles/config/dms/plugins/aiAgents` to `~/.config/dms/plugins/` and `dotfiles/local/bin/ai-agent-usage` to `~/.local/bin/`, replace `__HOME__` in the QML with your home path, enable the plugin, and add `aiAgents` to the bar in DMS settings. Reload DMS as needed. The panel requires a real DMS session for visual verification.
