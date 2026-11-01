@@ -1,0 +1,1 @@
+{"id":"googleCalendar","name":"Google Calendar","description":"Upcoming Google Calendar events and meeting links.","version":"1.0.0","author":"ivanaguilera","type":"widget","capabilities":["dankbar-widget"],"component":"./GoogleCalendar.qml","icon":"event","permissions":["process","settings_read"]}
