@@ -22,6 +22,12 @@ PluginComponent {
         { id: "catppuccin-mocha", name: "Catppuccin Mocha", kind: "Dark", background: "#1e1e2e", accent: "#cba6f7" },
         { id: "catppuccin-macchiato", name: "Catppuccin Macchiato", kind: "Dark", background: "#24273a", accent: "#c6a0f6" },
         { id: "catppuccin-frappe", name: "Catppuccin Frappé", kind: "Dark", background: "#303446", accent: "#ca9ee6" },
+        { id: "gruvbox-dark", name: "Gruvbox Dark", kind: "Dark", background: "#282828", accent: "#fabd2f" },
+        { id: "astral", name: "Astral", kind: "Dark", background: "#121212", accent: "#8e92ff" },
+        { id: "aurora", name: "Aurora", kind: "Dark", background: "#140f1f", accent: "#59c98d" },
+        { id: "eldritch", name: "Eldritch", kind: "Dark", background: "#212337", accent: "#37f499" },
+        { id: "monokai", name: "Monokai", kind: "Dark", background: "#0a1220", accent: "#78dce8" },
+        { id: "moodpeak", name: "Moodpeak", kind: "Dark", background: "#181c22", accent: "#4ecdc4" },
         { id: "gruvbox-light", name: "Gruvbox Light", kind: "Light", background: "#fbf1c7", accent: "#9d0006" },
         { id: "solarized-light", name: "Solarized Light", kind: "Light", background: "#eee8d5", accent: "#005a80" },
         { id: "rose-pine-dawn", name: "Rosé Pine Dawn", kind: "Light", background: "#faf4ed", accent: "#907aa8" }

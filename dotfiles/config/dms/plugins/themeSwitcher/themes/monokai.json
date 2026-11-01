@@ -1,0 +1,20 @@
+{
+  "name": "Monokai",
+  "primary": "#78dce8",
+  "primaryText": "#0a1220",
+  "secondary": "#aba0f2",
+  "surface": "#0a1220",
+  "surfaceText": "#f0f2f5",
+  "surfaceVariant": "#555c65",
+  "surfaceVariantText": "#f0f2f5",
+  "surfaceTint": "#78dce8",
+  "background": "#0a1220",
+  "backgroundText": "#f0f2f5",
+  "outline": "#b3bdcc",
+  "surfaceContainerLowest": "#080e18",
+  "surfaceContainerLow": "#0a1220",
+  "surfaceContainer": "#111f37",
+  "surfaceContainerHigh": "#111f37",
+  "surfaceContainerHighest": "#555c65",
+  "error": "#f25e86"
+}

@@ -22,7 +22,7 @@ class ThemePaletteTests(unittest.TestCase):
     def test_every_picker_choice_has_a_valid_palette(self):
         qml = (ROOT / "ThemeSwitcher.qml").read_text()
         choices = re.findall(r'\{ id: "([a-z-]+)", name:', qml)
-        self.assertEqual(len(choices), 8)
+        self.assertEqual(len(choices), 14)
         self.assertEqual(len(set(choices)), len(choices))
         self.assertEqual(set(choices), {p.stem for p in (ROOT / "themes").glob("*.json")})
         for choice in choices:
