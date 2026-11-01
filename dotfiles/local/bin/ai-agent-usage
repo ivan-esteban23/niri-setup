@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+"""Read Codex subscription limits through its local app-server protocol."""
+import json, math, selectors, shutil, subprocess, sys, time
+
+def read_response(process, request_id, timeout=12):
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ)
+    deadline = time.monotonic() + timeout
+    try:
+        while time.monotonic() < deadline:
+            if not selector.select(max(0, deadline - time.monotonic())):
+                break
+            line = process.stdout.readline()
+            if not line:
+                break
+            try:
+                response = json.loads(line)
+            except (ValueError, UnicodeError):
+                continue
+            if response.get('id') == request_id:
+                if response.get('error'):
+                    raise RuntimeError('Codex could not read limits; check your sign-in or plan.')
+                return response.get('result') or {}
+        raise RuntimeError('Codex did not respond in time.')
+    finally:
+        selector.close()
+
+def main():
+    if not shutil.which('codex'):
+        return {'status': 'Codex CLI is not installed.', 'limits': []}
+    try:
+        with subprocess.Popen(['codex', 'app-server'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1) as p:
+            try:
+                def send(msg):
+                    p.stdin.write(json.dumps(msg) + '\n'); p.stdin.flush()
+                send({'id': 1, 'method': 'initialize', 'params': {'clientInfo': {'name': 'niri-ai-agents', 'version': '1'}}})
+                read_response(p, 1)
+                send({'method': 'initialized', 'params': {}})
+                send({'id': 2, 'method': 'account/rateLimits/read'})
+                data = read_response(p, 2)
+                buckets = data.get('rateLimitsByLimitId') or {'codex': data.get('rateLimits')}
+                limits = []
+                for key, bucket in buckets.items():
+                    if not isinstance(bucket, dict): continue
+                    for slot in ('primary', 'secondary'):
+                        window = bucket.get(slot)
+                        if not isinstance(window, dict): continue
+                        percent = window.get('usedPercent')
+                        if isinstance(percent, bool) or not isinstance(percent, (int, float)) or not math.isfinite(percent): continue
+                        minutes = window.get('windowDurationMins')
+                        label = 'Weekly' if minutes == 10080 else (f'{minutes // 60} hours' if isinstance(minutes, int) and minutes % 60 == 0 else f'{minutes} minutes' if minutes else slot.title())
+                        limits.append({'label': (bucket.get('limitName') or key) + ' · ' + label, 'used': max(0, min(100, round(percent))), 'reset': window.get('resetsAt')})
+                return {'status': 'Subscription limits' if limits else 'No subscription limits reported by Codex.', 'limits': limits}
+            finally:
+                p.terminate()
+                try: p.wait(timeout=2)
+                except subprocess.TimeoutExpired: p.kill(); p.wait()
+    except (OSError, RuntimeError, BrokenPipeError):
+        return {'status': 'Could not read Codex limits. Check Codex sign-in and try Refresh.', 'limits': []}
+
+if __name__ == '__main__':
+    print(json.dumps(main(), ensure_ascii=False))

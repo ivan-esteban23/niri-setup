@@ -1,0 +1,1 @@
+{"id":"aiAgents","name":"AI Agents","description":"Codex and Antigravity subscription usage and rate limits in the bar.","version":"1.0.0","author":"ivanaguilera","type":"widget","capabilities":["dankbar-widget"],"component":"./AiAgentsWidget.qml","icon":"smart_toy","permissions":["process","settings_read"]}
