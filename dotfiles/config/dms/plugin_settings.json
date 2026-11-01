@@ -34,8 +34,5 @@
   },
   "aiAgents": {
     "enabled": true
-  },
-  "googleCalendar": {
-    "enabled": true
   }
 }
