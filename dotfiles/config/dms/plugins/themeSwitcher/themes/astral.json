@@ -1,0 +1,20 @@
+{
+  "name": "Astral",
+  "primary": "#8e92ff",
+  "primaryText": "#121212",
+  "secondary": "#5cf59f",
+  "surface": "#121212",
+  "surfaceText": "#ffffff",
+  "surfaceVariant": "#303050",
+  "surfaceVariantText": "#ffffff",
+  "surfaceTint": "#8e92ff",
+  "background": "#121212",
+  "backgroundText": "#ffffff",
+  "outline": "#bfbfbf",
+  "surfaceContainerLowest": "#0e0e0e",
+  "surfaceContainerLow": "#121212",
+  "surfaceContainer": "#2a2a2a",
+  "surfaceContainerHigh": "#2a2a2a",
+  "surfaceContainerHighest": "#303050",
+  "error": "#b288f7"
+}

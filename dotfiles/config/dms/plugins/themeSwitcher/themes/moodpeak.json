@@ -1,0 +1,20 @@
+{
+  "name": "Moodpeak",
+  "primary": "#4ecdc4",
+  "primaryText": "#181c22",
+  "secondary": "#b388eb",
+  "surface": "#181c22",
+  "surfaceText": "#e0e6ed",
+  "surfaceVariant": "#2c3444",
+  "surfaceVariantText": "#e0e6ed",
+  "surfaceTint": "#4ecdc4",
+  "background": "#181c22",
+  "backgroundText": "#e0e6ed",
+  "outline": "#d1d7e0",
+  "surfaceContainerLowest": "#101318",
+  "surfaceContainerLow": "#181c22",
+  "surfaceContainer": "#23272d",
+  "surfaceContainerHigh": "#23272d",
+  "surfaceContainerHighest": "#2c3444",
+  "error": "#ff7b92"
+}

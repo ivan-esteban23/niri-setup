@@ -1,0 +1,20 @@
+{
+  "name": "Eldritch",
+  "primary": "#37f499",
+  "primaryText": "#212337",
+  "secondary": "#9071f4",
+  "surface": "#212337",
+  "surfaceText": "#ebfafa",
+  "surfaceVariant": "#414663",
+  "surfaceVariantText": "#ebfafa",
+  "surfaceTint": "#37f499",
+  "background": "#212337",
+  "backgroundText": "#ebfafa",
+  "outline": "#c6cbe8",
+  "surfaceContainerLowest": "#191a2a",
+  "surfaceContainerLow": "#212337",
+  "surfaceContainer": "#30334a",
+  "surfaceContainerHigh": "#30334a",
+  "surfaceContainerHighest": "#414663",
+  "error": "#f9515d"
+}

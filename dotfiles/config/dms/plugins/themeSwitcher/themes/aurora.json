@@ -1,0 +1,20 @@
+{
+  "name": "Aurora",
+  "primary": "#59c98d",
+  "primaryText": "#140f1f",
+  "secondary": "#d08fe0",
+  "surface": "#140f1f",
+  "surfaceText": "#dfede5",
+  "surfaceVariant": "#2a4a3e",
+  "surfaceVariantText": "#dfede5",
+  "surfaceTint": "#59c98d",
+  "background": "#140f1f",
+  "backgroundText": "#dfede5",
+  "outline": "#9dbcb1",
+  "surfaceContainerLowest": "#0d0a16",
+  "surfaceContainerLow": "#140f1f",
+  "surfaceContainer": "#2a2340",
+  "surfaceContainerHigh": "#2a2340",
+  "surfaceContainerHighest": "#2a4a3e",
+  "error": "#e0607f"
+}
