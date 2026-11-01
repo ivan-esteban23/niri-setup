@@ -22,7 +22,7 @@ class ThemePaletteTests(unittest.TestCase):
     def test_every_picker_choice_has_a_valid_palette(self):
         qml = (ROOT / "ThemeSwitcher.qml").read_text()
         choices = re.findall(r'\{ id: "([a-z-]+)", name:', qml)
-        self.assertEqual(len(choices), 14)
+        self.assertEqual(len(choices), 13)
         self.assertEqual(len(set(choices)), len(choices))
         self.assertEqual(set(choices), {p.stem for p in (ROOT / "themes").glob("*.json")})
         for choice in choices:
@@ -34,7 +34,7 @@ class ThemePaletteTests(unittest.TestCase):
                     self.assertGreaterEqual(contrast(palette[foreground], palette[background]), 4.5, (choice, foreground, background))
 
     def test_light_palettes_use_warm_surfaces(self):
-        for choice in ("gruvbox-light", "solarized-light", "rose-pine-dawn"):
+        for choice in ("gruvbox-light", "solarized-light"):
             palette = json.loads((ROOT / "themes" / (choice + ".json")).read_text())
             with self.subTest(choice=choice):
                 color = palette["surface"].lower()

@@ -29,8 +29,7 @@ PluginComponent {
         { id: "monokai", name: "Monokai", kind: "Dark", background: "#0a1220", accent: "#78dce8" },
         { id: "moodpeak", name: "Moodpeak", kind: "Dark", background: "#181c22", accent: "#4ecdc4" },
         { id: "gruvbox-light", name: "Gruvbox Light", kind: "Light", background: "#fbf1c7", accent: "#9d0006" },
-        { id: "solarized-light", name: "Solarized Light", kind: "Light", background: "#eee8d5", accent: "#005a80" },
-        { id: "rose-pine-dawn", name: "Rosé Pine Dawn", kind: "Light", background: "#faf4ed", accent: "#907aa8" }
+        { id: "solarized-light", name: "Solarized Light", kind: "Light", background: "#eee8d5", accent: "#005a80" }
     ]
     readonly property string activeId: {
         if (Theme.currentThemeName !== "custom") return "";
